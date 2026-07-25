@@ -1,4 +1,4 @@
-module github.com/koharness/koharness
+module github.com/korakotlee/koharness
 
 go 1.24.0
 

@@ -17,7 +17,7 @@ go build -o koharness .
 To test custom release version injection via `ldflags`:
 
 ```bash
-go build -ldflags "-X github.com/koharness/koharness/pkg/version.Version=v1.0.0 -X github.com/koharness/koharness/pkg/version.Commit=a1b2c3d" -o koharness .
+go build -ldflags "-X github.com/korakotlee/koharness/pkg/version.Version=v1.0.0 -X github.com/korakotlee/koharness/pkg/version.Commit=a1b2c3d" -o koharness .
 ```
 
 ## 2. Running Automated Tests

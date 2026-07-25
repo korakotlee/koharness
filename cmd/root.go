@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/koharness/koharness/pkg/tui"
-	"github.com/koharness/koharness/pkg/version"
+	"github.com/korakotlee/koharness/pkg/tui"
+	"github.com/korakotlee/koharness/pkg/version"
 	"github.com/spf13/cobra"
 )
 

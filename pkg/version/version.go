@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	// Version is populated via ldflags at build time (e.g., -X github.com/koharness/koharness/pkg/version.Version=v0.1.0).
+	// Version is populated via ldflags at build time (e.g., -X github.com/korakotlee/koharness/pkg/version.Version=v0.1.0).
 	Version = ""
 	// Commit is populated via ldflags at build time.
 	Commit = ""

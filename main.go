@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/koharness/koharness/cmd"
+	"github.com/korakotlee/koharness/cmd"
 )
 
 func main() {

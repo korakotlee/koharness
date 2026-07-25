@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/koharness/koharness/pkg/version"
+	"github.com/korakotlee/koharness/pkg/version"
 )
 
 // GetUserEmail retrieves user.email from local git config with fallback.
