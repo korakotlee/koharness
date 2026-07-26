@@ -69,12 +69,12 @@ func (tx *Transaction) Rollback() error {
 
 		// Remove newly created target symlink if created
 		if op.TargetPath != "" {
-			_ = tx.fs.Remove(op.TargetPath)
+			_ = tx.fs.RemoveAll(op.TargetPath)
 		}
 
 		// Remove remaining temp symlink if present
 		if op.TempPath != "" {
-			_ = tx.fs.Remove(op.TempPath)
+			_ = tx.fs.RemoveAll(op.TempPath)
 		}
 
 		// Restore original backed-up asset
@@ -137,7 +137,7 @@ func NewLinkerEngine(cfg LinkerConfig) *LinkerEngine {
 }
 
 // CreateSymlink performs atomic symlink creation from sourcePath to targetPath.
-// If targetPath exists, it is backed up before being atomically replaced.
+// If targetPath exists, it is backed up and removed before being atomically replaced with a symlink.
 func (le *LinkerEngine) CreateSymlink(sourcePath, targetPath string) (*Transaction, error) {
 	tx := NewTransaction(le.fs, le.dryRun)
 
@@ -176,13 +176,18 @@ func (le *LinkerEngine) CreateSymlink(sourcePath, targetPath string) (*Transacti
 		targetExists, _ = afero.Exists(le.fs, targetPath)
 	}
 
-	// 3. Backup existing target if present
+	// 3. Backup existing target if present and remove it so atomic rename succeeds
 	if targetExists {
 		rec, berr := le.backupManager.Backup(targetPath)
 		if berr != nil {
 			return tx, fmt.Errorf("failed to backup existing file at %s: %w", targetPath, berr)
 		}
 		op.BackupRecord = rec
+
+		if err := le.fs.RemoveAll(targetPath); err != nil {
+			_ = tx.Rollback()
+			return tx, fmt.Errorf("failed removing backed up target at %s: %w", targetPath, err)
+		}
 	}
 
 	// Ensure parent directory of target exists
@@ -253,7 +258,7 @@ func (le *LinkerEngine) RepairSymlink(newSourcePath, targetPath string) (*Transa
 
 	// Remove broken link cleanly and recreate
 	if !le.dryRun {
-		_ = le.fs.Remove(targetPath)
+		_ = le.fs.RemoveAll(targetPath)
 	}
 	return le.CreateSymlink(newSourcePath, targetPath)
 }

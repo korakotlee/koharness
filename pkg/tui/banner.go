@@ -3,22 +3,32 @@ package tui
 import (
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/korakotlee/koharness/pkg/version"
 )
 
-// GetUserEmail retrieves user.email from local git config with fallback.
+var (
+	cachedEmail string
+	emailOnce   sync.Once
+)
+
+// GetUserEmail retrieves user.email from local git config with fallback, cached after first call.
 func GetUserEmail() string {
-	cmd := exec.Command("git", "config", "user.email")
-	out, err := cmd.Output()
-	if err == nil {
-		email := strings.TrimSpace(string(out))
-		if email != "" {
-			return email
+	emailOnce.Do(func() {
+		cmd := exec.Command("git", "config", "user.email")
+		out, err := cmd.Output()
+		if err == nil {
+			email := strings.TrimSpace(string(out))
+			if email != "" {
+				cachedEmail = email
+				return
+			}
 		}
-	}
-	return "kleemakdej@gmail.com"
+		cachedEmail = "kleemakdej@gmail.com"
+	})
+	return cachedEmail
 }
 
 // RenderBanner outputs the 5-line block-art logo and metadata panel.

@@ -6,6 +6,33 @@ Centralize, version-control, and share AI capabilities across Claude Code, Googl
 
 ---
 
+## The Problem: Fractured Team AI Tooling
+
+In most engineering teams, AI setups are fragmented across developers:
+
+- **Alice** crafts custom system prompts and bash scripts for Claude Code inside `~/.claude/`.
+- **Bob** configures specialized multi-file skills and workflows for Google Antigravity.
+- **Charlie** sets up custom Model Context Protocol (MCP) servers locally for Copilot CLI to inspect databases and logs.
+
+When Alice builds a great debugging workflow or Charlie writes an MCP config for internal tools, there is no easy way to share it with the team. Capabilities stay trapped in individual dotfiles, private local setups, or loose slack snippets. When a new engineer joins, onboarding their AI setup means manually copy-pasting JSON files and fixing path mismatches.
+
+Team memory and AI tooling remain siloed, leading to duplicated effort and inconsistent developer environments across the team.
+
+## The Solution: A Shared AI Capability Repository
+
+`koharness` solves this by turning team AI capabilities into a single, version-controlled dotfiles repository.
+
+Instead of managing local configs in isolation:
+
+1. **Centralize & Version-Control:** Store prompts, skills, workflows, and MCP configurations in a shared Git repository (`ai-workspace/` or dotfiles).
+2. **Cross-Harness Sync:** Define capabilities once and `koharness` symlinks and adapts them dynamically across Claude Code, Google Antigravity, and OpenAI Codex.
+3. **Instant Onboarding:** New team members run `koharness init` to clone and link team capabilities into their environment immediately.
+4. **Layered Configs:** Shared team definitions (`mcp.json`) merge cleanly with local personal overrides (`mcp.local.json`), giving engineers flexibility without sacrificing team standardization.
+
+With `koharness`, teams build a shared AI memory and tool stack that evolves together in Git.
+
+---
+
 ## Key Features
 
 - **Cross-Harness Sync:** Synchronize prompts, skills, and MCP configurations across Claude Code, Google Antigravity, and OpenAI Codex.
@@ -48,10 +75,23 @@ ai-workspace/
 | Command | Description |
 | :--- | :--- |
 | `koharness init` | Interactively detect local AI harnesses, backup legacy configs, and symlink repository capabilities. |
-| `koharness create` | Harvest unmanaged local capabilities, initialize a dotfiles repo, and setup symlinks. |
+| `koharness create [repo-path]` | Harvest unmanaged local capabilities, bootstrap a new dotfiles repo, back up original assets, and setup symlinks. |
 | `koharness sync` | Pull remote updates via rebase, merge local MCP overrides, expand env vars, and update symlinks. |
 | `koharness doctor` | Audit active symlinks, verify executable permissions, and check missing environment variables. |
 | `koharness lint` | Lint JSON/YAML schemas, executable script bits (`chmod +x`), and skill frontmatter in CI/CD. |
+
+### Creating a New Repository (`koharness create`)
+
+To harvest your existing local skills, prompts, and MCP servers into a new dotfiles repository:
+
+```bash
+# Interactively harvest unmanaged capabilities into ~/.koharness/repo
+koharness create
+
+# Harvest into a custom repository path in non-interactive mode
+koharness create ~/dev/my-ai-dotfiles --non-interactive
+```
+
 
 ---
 
