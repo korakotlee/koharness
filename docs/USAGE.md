@@ -39,6 +39,9 @@ go test -v ./pkg/tui/...
 
 # Test Cobra root command flags
 go test -v ./cmd/...
+
+# Test atomic backup & symlink engine
+go test -v ./pkg/symlink/...
 ```
 
 ## 3. Testing CLI Commands & Flags
