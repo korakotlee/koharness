@@ -93,6 +93,24 @@ koharness create
 koharness create ~/dev/my-ai-dotfiles --non-interactive
 ```
 
+### Initializing an Existing Repository (`koharness init`)
+
+To clone an existing team or personal dotfiles repository and link its capabilities into your local client harnesses (`~/.gemini`, `~/.claude.json`, `~/.codex`):
+
+```bash
+# Clone a git repository into ~/.koharness/repo and run the TUI setup dashboard
+koharness init https://github.com/myteam/ai-dotfiles.git
+
+# Clone into a custom directory path
+koharness init https://github.com/myteam/ai-dotfiles.git ~/custom/ai-repo
+
+# Overwrite/backup existing target directory if present
+koharness init https://github.com/myteam/ai-dotfiles.git --force
+
+# Run in non-interactive mode (ideal for automated developer environment setup)
+koharness init https://github.com/myteam/ai-dotfiles.git --non-interactive
+```
+
 ### Accessing Your Repository (`koharness repo`)
 
 Navigate into or launch operations in your central dotfiles repository (`~/.koharness/repo` or custom path):

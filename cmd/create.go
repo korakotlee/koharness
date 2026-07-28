@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/korakotlee/koharness/pkg/harness"
 	"github.com/korakotlee/koharness/pkg/harvester"
 	"github.com/korakotlee/koharness/pkg/tui"
 	"github.com/spf13/cobra"
@@ -79,6 +80,8 @@ var createCmd = &cobra.Command{
 		if err := creator.HarvestCapabilities(selectedCaps); err != nil {
 			return fmt.Errorf("failed harvesting capabilities: %w", err)
 		}
+
+		_ = harness.SaveGlobalConfig(&harness.GlobalConfig{RepoPath: repoPath}, harness.PathOptions{HomeDir: homeDir})
 
 		fmt.Println(tui.BadgeSuccess("SUCCESS"), lipgloss.NewStyle().Bold(true).Render("Repository initialized and capabilities linked cleanly!"))
 		fmt.Printf("Repository Path: %s\n", repoPath)

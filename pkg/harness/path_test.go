@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/korakotlee/koharness/pkg/harness"
+	"github.com/spf13/afero"
 )
 
 func TestGetRepoPath(t *testing.T) {
@@ -66,6 +67,50 @@ func TestGetRepoPath(t *testing.T) {
 	}
 }
 
+func TestGlobalConfigSaveAndLoad(t *testing.T) {
+	fakeHome := "/home/testuser"
+	memFs := afero.NewMemMapFs()
+
+	opts := harness.PathOptions{
+		Fs:      memFs,
+		HomeDir: fakeHome,
+	}
+
+	// 1. Initially config does not exist, LoadGlobalConfig should return empty config
+	cfg, err := harness.LoadGlobalConfig(opts)
+	if err != nil {
+		t.Fatalf("unexpected error loading empty config: %v", err)
+	}
+	if cfg.RepoPath != "" {
+		t.Errorf("expected empty RepoPath, got %q", cfg.RepoPath)
+	}
+
+	// 2. Save config
+	cfg.RepoPath = "~/custom/dotfiles"
+	if err := harness.SaveGlobalConfig(cfg, opts); err != nil {
+		t.Fatalf("failed saving config: %v", err)
+	}
+
+	// 3. Load config and verify saved value
+	loaded, err := harness.LoadGlobalConfig(opts)
+	if err != nil {
+		t.Fatalf("failed loading saved config: %v", err)
+	}
+	if loaded.RepoPath != "~/custom/dotfiles" {
+		t.Errorf("expected RepoPath %q, got %q", "~/custom/dotfiles", loaded.RepoPath)
+	}
+
+	// 4. Test GetRepoPath resolution using config file
+	resolved, err := harness.GetRepoPath("", opts)
+	if err != nil {
+		t.Fatalf("unexpected error resolving path from config: %v", err)
+	}
+	expected := filepath.Join(fakeHome, "custom/dotfiles")
+	if resolved != expected {
+		t.Errorf("GetRepoPath with config = %q, want %q", resolved, expected)
+	}
+}
+
 func TestExpandTilde(t *testing.T) {
 	fakeHome := "/home/user"
 
@@ -86,3 +131,4 @@ func TestExpandTilde(t *testing.T) {
 		}
 	}
 }
+

@@ -12,11 +12,8 @@ import (
 )
 
 func TestRepoCmd_PrintPath(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "koharness-repo-test-*")
-	if err != nil {
-		t.Fatalf("failed creating temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
 
 	buf := new(bytes.Buffer)
 	cmd.RootCmd.SetOut(buf)
@@ -28,7 +25,7 @@ func TestRepoCmd_PrintPath(t *testing.T) {
 
 	cmd.RootCmd.SetArgs([]string{"repo", "-p", "-d", tempDir})
 
-	err = cmd.Execute()
+	err := cmd.Execute()
 	if err != nil {
 		t.Fatalf("unexpected execution error: %v", err)
 	}
@@ -41,6 +38,8 @@ func TestRepoCmd_PrintPath(t *testing.T) {
 }
 
 func TestRepoCmd_NonExistentRepo(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
 	buf := new(bytes.Buffer)
 	cmd.RootCmd.SetOut(buf)
 	cmd.RootCmd.SetErr(buf)
@@ -63,6 +62,8 @@ func TestRepoCmd_NonExistentRepo(t *testing.T) {
 }
 
 func TestRepoCmd_ShellInit(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
 	buf := new(bytes.Buffer)
 	cmd.RootCmd.SetOut(buf)
 	cmd.RootCmd.SetErr(buf)
@@ -85,11 +86,8 @@ func TestRepoCmd_ShellInit(t *testing.T) {
 }
 
 func TestRepoCmd_EnvVarOverride(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "koharness-env-repo-test-*")
-	if err != nil {
-		t.Fatalf("failed creating temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
+	t.Setenv("HOME", tempDir)
 
 	os.Setenv(harness.EnvKoharnessRepo, tempDir)
 	defer os.Unsetenv(harness.EnvKoharnessRepo)
@@ -104,7 +102,7 @@ func TestRepoCmd_EnvVarOverride(t *testing.T) {
 
 	cmd.RootCmd.SetArgs([]string{"repo", "-p"})
 
-	err = cmd.Execute()
+	err := cmd.Execute()
 	if err != nil {
 		t.Fatalf("unexpected execution error: %v", err)
 	}
