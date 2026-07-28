@@ -76,6 +76,7 @@ ai-workspace/
 | :--- | :--- |
 | `koharness init` | Interactively detect local AI harnesses, backup legacy configs, and symlink repository capabilities. |
 | `koharness create [repo-path]` | Harvest unmanaged local capabilities, bootstrap a new dotfiles repo, back up original assets, and setup symlinks. |
+| `koharness repo` | Navigate to, launch a subshell inside, or open your local dotfiles repository directory. |
 | `koharness sync` | Pull remote updates via rebase, merge local MCP overrides, expand env vars, and update symlinks. |
 | `koharness doctor` | Audit active symlinks, verify executable permissions, and check missing environment variables. |
 | `koharness lint` | Lint JSON/YAML schemas, executable script bits (`chmod +x`), and skill frontmatter in CI/CD. |
@@ -91,6 +92,25 @@ koharness create
 # Harvest into a custom repository path in non-interactive mode
 koharness create ~/dev/my-ai-dotfiles --non-interactive
 ```
+
+### Accessing Your Repository (`koharness repo`)
+
+Navigate into or launch operations in your central dotfiles repository (`~/.koharness/repo` or custom path):
+
+```bash
+# Launch an interactive subshell ($SHELL) inside your repository
+koharness repo
+
+# Print raw absolute path to stdout (ideal for shell functions or command substitution)
+cd "$(koharness repo -p)"
+
+# Open the repository directory in your preferred code editor ($EDITOR or VS Code)
+koharness repo -e code
+
+# Generate shell integration helper snippet for zsh/bash/fish
+koharness repo --shell-init
+```
+
 
 
 ---
