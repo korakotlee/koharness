@@ -42,6 +42,9 @@ go test -v ./cmd/...
 
 # Test atomic backup & symlink engine
 go test -v ./pkg/symlink/...
+
+# Test MCP configuration merger, env expander, and validator
+go test -v ./pkg/mcp/...
 ```
 
 ## 3. Testing CLI Commands & Flags

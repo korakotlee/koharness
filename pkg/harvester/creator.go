@@ -1,6 +1,7 @@
 package harvester
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -137,6 +138,14 @@ func (c *Creator) HarvestCapabilities(items []DiscoveredCapability) error {
 
 		destRepoPath := filepath.Join(c.repoPath, targetSubDir, item.Name)
 
+		if item.Type == harness.CapabilityMCP && item.IsSecret {
+			localMCPPath := filepath.Join(c.repoPath, targetSubDir, "mcp.local.json")
+			if err := c.appendMCPOverride(item, localMCPPath); err != nil {
+				return fmt.Errorf("failed writing local MCP override for %s: %w", item.Name, err)
+			}
+			continue
+		}
+
 		// 1. Copy source asset into repo directory
 		if err := c.copyAsset(item.SourcePath, destRepoPath); err != nil {
 			return fmt.Errorf("failed copying harvested asset %s to repo: %w", item.Name, err)
@@ -149,6 +158,33 @@ func (c *Creator) HarvestCapabilities(items []DiscoveredCapability) error {
 	}
 
 	return nil
+}
+
+func (c *Creator) appendMCPOverride(item DiscoveredCapability, targetFile string) error {
+	existingData := make(map[string]interface{})
+	if exists, _ := afero.Exists(c.fs, targetFile); exists {
+		data, err := afero.ReadFile(c.fs, targetFile)
+		if err == nil {
+			_ = json.Unmarshal(data, &existingData)
+		}
+	}
+
+	servers, ok := existingData["mcpServers"].(map[string]interface{})
+	if !ok {
+		servers = make(map[string]interface{})
+		existingData["mcpServers"] = servers
+	}
+
+	servers[item.Name] = map[string]interface{}{
+		"source": item.SourcePath,
+	}
+
+	updatedBytes, err := json.MarshalIndent(existingData, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return afero.WriteFile(c.fs, targetFile, updatedBytes, 0644)
 }
 
 func (c *Creator) copyAsset(src, dst string) error {

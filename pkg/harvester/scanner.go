@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/korakotlee/koharness/pkg/harness"
+	"github.com/korakotlee/koharness/pkg/mcp"
 	"github.com/spf13/afero"
 )
 
@@ -185,14 +186,21 @@ func (s *Scanner) scanMCP(harnessID harness.HarnessID, mcpPath string) ([]Discov
 	}
 
 	var results []DiscoveredCapability
-	for serverName := range cfg.MCPServers {
+	for serverName, serverDef := range cfg.MCPServers {
+		isSecret := false
+		if serverBytes, err := json.Marshal(serverDef); err == nil {
+			issues, _ := mcp.ValidateConfig(serverBytes)
+			if len(issues) > 0 {
+				isSecret = true
+			}
+		}
 		results = append(results, DiscoveredCapability{
 			HarnessID:  harnessID,
 			Type:       harness.CapabilityMCP,
 			Name:       serverName,
 			SourcePath: mcpPath,
 			Selected:   true,
-			IsSecret:   true, // Config file servers often contain secrets/API keys
+			IsSecret:   isSecret,
 		})
 	}
 	return results, nil

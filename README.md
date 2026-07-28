@@ -129,6 +129,15 @@ koharness repo -e code
 koharness repo --shell-init
 ```
 
+### Layered MCP Configuration & Environment Expansion
+
+`koharness` manages Model Context Protocol (MCP) server definitions cleanly across team repositories:
+
+- **`mcp/mcp.json` (Committed)**: Shared, portable team MCP tools with environment variable expansion (`${HOME}`, `${PATH}`, `${DB_URL}`).
+- **`mcp/mcp.local.json` (Git-Ignored)**: Machine-specific overrides, custom binary paths, and private API keys.
+- **Dynamic Token Expansion**: Expands `${VAR}` tokens and tilde (`~`) paths at runtime before writing active client configs (`~/.gemini/config/mcp_config.json`, `~/.claude.json`, `~/.codex/config.toml`).
+- **Secret Safety Validator**: Prevents committing hardcoded absolute paths (`/Users/username/...`) or raw API secret keys into shared repository files.
+
 
 
 ---
