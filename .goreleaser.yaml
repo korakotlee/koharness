@@ -40,6 +40,9 @@ changelog:
       - "^docs:"
       - "^test:"
 
+release:
+  mode: replace
+
 brews:
   - repository:
       owner: korakotlee
