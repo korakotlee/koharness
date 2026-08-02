@@ -245,7 +245,9 @@ koharness uninstall --dry-run
 koharness uninstall --force --purge-config
 ```
 
-### GitHub Actions CI/CD Integration
+---
+
+## GitHub Actions CI/CD Integration
 
 To automatically enforce repository asset quality on every pull request, add `.github/workflows/koharness-lint.yml` to your repository:
 
@@ -269,25 +271,6 @@ jobs:
       - run: go build -v -o koharness main.go
       - run: ./koharness lint
 ```
-
-
-
-
----
-
-## Release Pipeline & Tagging
-
-Releases are automatically built and published via GoReleaser and GitHub Actions when a release tag is pushed:
-
-```bash
-# Tag a new release
-git tag -a v0.1.0 -m "Release v0.1.0"
-
-# Push release tag to trigger GitHub Actions release pipeline
-git push origin v0.1.0
-```
-
-The release workflow compiles cross-platform binaries, generates `checksums.txt`, and updates the Homebrew formula in `korakotlee/homebrew-tap`.
 
 ---
 
