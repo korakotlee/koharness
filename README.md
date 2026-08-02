@@ -144,14 +144,52 @@ koharness sync ~/dev/my-ai-dotfiles
 koharness sync --non-interactive
 ```
 
-### Layered MCP Configuration & Environment Expansion
+### Quality Assurance & Linting (`koharness lint`)
 
-`koharness` manages Model Context Protocol (MCP) server definitions cleanly across team repositories:
+Statically validate repository assets including JSON/YAML syntax in `mcp/` and `harnesses/`, executable script permissions (`chmod +x`) in `skills/*/scripts/`, and YAML frontmatter metadata in `SKILL.md` files:
 
-- **`mcp/mcp.json` (Committed)**: Shared, portable team MCP tools with environment variable expansion (`${HOME}`, `${PATH}`, `${DB_URL}`).
-- **`mcp/mcp.local.json` (Git-Ignored)**: Machine-specific overrides, custom binary paths, and private API keys.
-- **Dynamic Token Expansion**: Expands `${VAR}` tokens and tilde (`~`) paths at runtime before writing active client configs (`~/.gemini/config/mcp_config.json`, `~/.claude.json`, `~/.codex/config.toml`).
-- **Secret Safety Validator**: Prevents committing hardcoded absolute paths (`/Users/username/...`) or raw API secret keys into shared repository files.
+```bash
+# Validate assets in current working directory
+koharness lint
+
+# Lint a specific repository path
+koharness lint ~/dev/my-ai-dotfiles
+```
+
+### Environment Diagnostics (`koharness doctor`)
+
+Inspect developer environment health, active symlink target integrity, and client AI harness configuration path access across Claude Code (`~/.claude.json`), Antigravity (`~/.gemini`), and Codex (`~/.codex`):
+
+```bash
+# Inspect environment health and diagnostic status
+koharness doctor
+```
+
+### GitHub Actions CI/CD Integration
+
+To automatically enforce repository asset quality on every pull request, add `.github/workflows/koharness-lint.yml` to your repository:
+
+```yaml
+name: KoHarness Quality Lint
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - run: go build -v -o koharness main.go
+      - run: ./koharness lint
+```
+
 
 
 
