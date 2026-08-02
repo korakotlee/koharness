@@ -129,6 +129,21 @@ koharness repo -e code
 koharness repo --shell-init
 ```
 
+### Synchronizing Capabilities (`koharness sync`)
+
+Pull downstream updates from your remote dotfiles repository, safely intercept uncommitted changes, and refresh client AI harness symlinks:
+
+```bash
+# Sync upstream capability updates into ~/.koharness/repo with dirty state guard
+koharness sync
+
+# Sync a custom repository path
+koharness sync ~/dev/my-ai-dotfiles
+
+# Run in non-interactive mode (returns error exit code on dirty repository)
+koharness sync --non-interactive
+```
+
 ### Layered MCP Configuration & Environment Expansion
 
 `koharness` manages Model Context Protocol (MCP) server definitions cleanly across team repositories:
