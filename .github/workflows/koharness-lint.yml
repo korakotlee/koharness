@@ -1,0 +1,27 @@
+name: KoHarness Quality Lint
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint:
+    name: Lint Repository Assets
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build koharness CLI
+        run: go build -v -o koharness main.go
+
+      - name: Run koharness lint
+        run: ./koharness lint

@@ -33,6 +33,22 @@ With `koharness`, teams build a shared AI memory and tool stack that evolves tog
 
 ---
 
+## Installation
+
+### Via Homebrew (macOS / Linux)
+
+```bash
+brew install korakotlee/tap/koharness
+```
+
+### From Source
+
+```bash
+go install github.com/korakotlee/koharness@latest
+```
+
+---
+
 ## Key Features
 
 - **Cross-Harness Sync:** Synchronize prompts, skills, and MCP configurations across Claude Code, Google Antigravity, and OpenAI Codex.
@@ -116,6 +132,7 @@ Refer to repository agent memory steering rules at `~/.koharness/repo/memory/AGE
 | `koharness sync` | Pull remote updates via rebase, merge local MCP overrides, expand env vars, and update symlinks. |
 | `koharness doctor` | Audit active symlinks, verify executable permissions, and check missing environment variables. |
 | `koharness lint` | Lint JSON/YAML schemas, executable script bits (`chmod +x`), and skill frontmatter in CI/CD. |
+| `koharness uninstall` | Restore managed symlinks to standalone physical files and remove target repository. |
 
 ### Creating a New Repository (`koharness create`)
 
@@ -213,6 +230,21 @@ Inspect developer environment health, active symlink target integrity, and clien
 koharness doctor
 ```
 
+### Uninstalling & Offboarding (`koharness uninstall`)
+
+Restore your client AI harness configurations back to standalone physical files and safely remove your managed dotfiles repository:
+
+```bash
+# Interactively convert symlinks to physical files and remove ~/.koharness/repo
+koharness uninstall
+
+# Preview symlink restorations and repository removal without altering disk
+koharness uninstall --dry-run
+
+# Bypass interactive prompt and purge global configuration directory
+koharness uninstall --force --purge-config
+```
+
 ### GitHub Actions CI/CD Integration
 
 To automatically enforce repository asset quality on every pull request, add `.github/workflows/koharness-lint.yml` to your repository:
@@ -240,6 +272,22 @@ jobs:
 
 
 
+
+---
+
+## Release Pipeline & Tagging
+
+Releases are automatically built and published via GoReleaser and GitHub Actions when a release tag is pushed:
+
+```bash
+# Tag a new release
+git tag -a v0.1.0 -m "Release v0.1.0"
+
+# Push release tag to trigger GitHub Actions release pipeline
+git push origin v0.1.0
+```
+
+The release workflow compiles cross-platform binaries, generates `checksums.txt`, and updates the Homebrew formula in `korakotlee/homebrew-tap`.
 
 ---
 
