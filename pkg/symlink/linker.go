@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/korakotlee/koharness/pkg/fsutil"
 	"github.com/spf13/afero"
 )
 
@@ -270,16 +271,15 @@ func restoreFromBackup(fs afero.Fs, rec *BackupRecord) error {
 
 	_ = fs.RemoveAll(rec.OriginalPath)
 
-	bm := NewBackupManager(fs, "", "")
 	info, err := fs.Stat(rec.BackupPath)
 	if err != nil {
 		return err
 	}
 
 	if info.IsDir() {
-		return bm.copyDir(rec.BackupPath, rec.OriginalPath)
+		return fsutil.CopyDir(fs, rec.BackupPath, rec.OriginalPath)
 	}
-	return bm.copyFile(rec.BackupPath, rec.OriginalPath)
+	return fsutil.CopyFile(fs, rec.BackupPath, rec.OriginalPath)
 }
 
 func generateRandomID() string {

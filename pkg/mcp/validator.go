@@ -31,6 +31,26 @@ var (
 	secretValuePattern = regexp.MustCompile(`^(sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{20,})`)
 )
 
+// MaskSecrets replaces sensitive tokens or secret values with masked placeholders (e.g., "sk-***" or "***").
+func MaskSecrets(s string) string {
+	if s == "" {
+		return ""
+	}
+	masked := secretValuePattern.ReplaceAllStringFunc(s, func(match string) string {
+		if strings.HasPrefix(match, "sk-") {
+			return "sk-***"
+		}
+		if strings.HasPrefix(match, "ghp_") {
+			return "ghp_***"
+		}
+		if strings.HasPrefix(match, "eyJ") {
+			return "eyJ***"
+		}
+		return "***"
+	})
+	return masked
+}
+
 // ValidateConfig inspects JSON configuration data for non-portable paths and hardcoded secrets.
 func ValidateConfig(data []byte) ([]ValidationIssue, error) {
 	if len(data) == 0 {
@@ -61,11 +81,12 @@ func inspectValue(val interface{}, currentPath string, issues *[]ValidationIssue
 		}
 		// Check for hardcoded secret values (e.g. API tokens) if key name suggests secret or value looks like token
 		if secretValuePattern.MatchString(v) {
+			masked := MaskSecrets(v)
 			*issues = append(*issues, ValidationIssue{
 				Type:    IssuePossibleSecret,
 				KeyPath: currentPath,
-				Value:   v,
-				Message: fmt.Sprintf("Possible raw API secret key detected at %s. Use environment variables or move to mcp.local.json.", currentPath),
+				Value:   masked,
+				Message: fmt.Sprintf("Possible raw API secret key detected at %s (%s). Use environment variables or move to mcp.local.json.", currentPath, masked),
 			})
 		}
 	case map[string]interface{}:
@@ -77,10 +98,14 @@ func inspectValue(val interface{}, currentPath string, issues *[]ValidationIssue
 			// Check if key name indicates secret and child is non-empty literal string
 			if strVal, ok := child.(string); ok && strVal != "" {
 				if secretPattern.MatchString(k) && !strings.HasPrefix(strVal, "${") {
+					masked := MaskSecrets(strVal)
+					if masked == strVal {
+						masked = "***"
+					}
 					*issues = append(*issues, ValidationIssue{
 						Type:    IssuePossibleSecret,
 						KeyPath: nextPath,
-						Value:   strVal,
+						Value:   masked,
 						Message: fmt.Sprintf("Key '%s' contains plain text secret value. Use environment variables or mcp.local.json.", nextPath),
 					})
 				}

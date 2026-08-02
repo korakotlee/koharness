@@ -41,6 +41,17 @@ type DiscoveredCapability struct {
 	IsSecret bool
 }
 
+// RepoCapabilityItem represents a capability discovered in a repository to be linked to local client harnesses.
+type RepoCapabilityItem struct {
+	Type        string `json:"type"`
+	Name        string `json:"name"`
+	HarnessID   string `json:"harness_id"`
+	RepoPath    string `json:"repo_path"`
+	TargetPath  string `json:"target_path"`
+	HasConflict bool   `json:"has_conflict"`
+	Selected    bool   `json:"selected"`
+}
+
 // GetState returns the current 3-state HarvestState of the capability.
 func (c *DiscoveredCapability) GetState() HarvestState {
 	if c.Ignored {
@@ -318,4 +329,70 @@ func (s *Scanner) scanMCP(harnessID harness.HarnessID, mcpPath string) ([]Discov
 		})
 	}
 	return results, nil
+}
+
+// ScanRepoCapabilities inspects repository folders (skills, prompts, mcp) and cross-references local harness paths to discover capabilities and highlight conflicts.
+func ScanRepoCapabilities(repoPath string, homeDir string) ([]RepoCapabilityItem, error) {
+	var items []RepoCapabilityItem
+
+	detector, err := harness.NewDetector(harness.WithHomeDir(homeDir))
+	if err != nil {
+		return nil, err
+	}
+	adapters := detector.GetAdapters()
+
+	categories := []string{"skills", "prompts", "mcp"}
+	for _, cat := range categories {
+		catPath := filepath.Join(repoPath, cat)
+		entries, err := os.ReadDir(catPath)
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range entries {
+			assetRepoPath := filepath.Join(catPath, entry.Name())
+
+			for _, adapter := range adapters {
+				paths := adapter.GetConfigPaths()
+				targetDir := ""
+				switch cat {
+				case "skills":
+					targetDir = paths.SkillsDir
+				case "prompts", "workflows":
+					targetDir = paths.WorkflowsDir
+				case "mcp":
+					targetDir = paths.MCPDir
+				}
+
+				if targetDir == "" {
+					continue
+				}
+
+				targetAssetPath := filepath.Join(targetDir, entry.Name())
+
+				hasConflict := false
+				if info, err := os.Stat(targetAssetPath); err == nil {
+					_ = info
+					hasConflict = true
+				}
+
+				itemType := cat
+				if strings.HasSuffix(itemType, "s") {
+					itemType = strings.TrimSuffix(itemType, "s")
+				}
+
+				items = append(items, RepoCapabilityItem{
+					Type:        itemType,
+					Name:        entry.Name(),
+					HarnessID:   adapter.Name(),
+					RepoPath:    assetRepoPath,
+					TargetPath:  targetAssetPath,
+					HasConflict: hasConflict,
+					Selected:    true,
+				})
+			}
+		}
+	}
+
+	return items, nil
 }

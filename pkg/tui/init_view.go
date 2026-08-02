@@ -8,46 +8,23 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/korakotlee/koharness/pkg/harvester"
 )
 
 // InitCapabilityItem represents a capability discovered in the repository to link into a client harness.
-type InitCapabilityItem struct {
-	// Type specifies the capability category (skill, prompt, mcp).
-	Type string
-	// Name specifies the identifier or file name of the capability.
-	Name string
-	// HarnessID identifies the target client harness (gemini, claude, codex).
-	HarnessID string
-	// RepoPath is the absolute path to the asset within the cloned repository.
-	RepoPath string
-	// TargetPath is the target destination path in the local client harness.
-	TargetPath string
-	// HasConflict indicates whether a local file or directory already exists at TargetPath.
-	HasConflict bool
-	// Selected indicates whether this item is toggled for symlinking during initialization.
-	Selected bool
-}
+type InitCapabilityItem = harvester.RepoCapabilityItem
 
 // InitModel represents the interactive Bubbletea TUI model for repository setup and capability linking.
 type InitModel struct {
-	Items        []InitCapabilityItem
-	Cursor       int
-	Offset       int
-	MaxVisible   int
-	Confirmed    bool
-	Canceled     bool
-	WindowHeight int
+	*SelectableListModel
+	Items []InitCapabilityItem
 }
 
 // NewInitModel constructs a new InitModel pointer with the provided repository capability items.
 func NewInitModel(items []InitCapabilityItem) *InitModel {
 	return &InitModel{
-		Items:      items,
-		Cursor:     0,
-		Offset:     0,
-		MaxVisible: 10,
-		Confirmed:  false,
-		Canceled:   false,
+		SelectableListModel: NewSelectableListModel(len(items)),
+		Items:               items,
 	}
 }
 
@@ -56,102 +33,25 @@ func (m *InitModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m *InitModel) setCursor(index int) {
-	if len(m.Items) == 0 {
-		m.Cursor = 0
-		m.Offset = 0
-		return
-	}
-
-	if index < 0 {
-		index = 0
-	}
-	if index >= len(m.Items) {
-		index = len(m.Items) - 1
-	}
-	m.Cursor = index
-
-	if m.MaxVisible <= 0 {
-		m.MaxVisible = 10
-	}
-
-	if m.Cursor < m.Offset {
-		m.Offset = m.Cursor
-	} else if m.Cursor >= m.Offset+m.MaxVisible {
-		m.Offset = m.Cursor - m.MaxVisible + 1
-	}
-
-	if m.Offset < 0 {
-		m.Offset = 0
-	}
-}
-
 // Update processes terminal input events and updates cursor and selection states.
 func (m *InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.WindowHeight = msg.Height
-		maxVis := msg.Height - 12
-		if maxVis < 5 {
-			maxVis = 5
-		}
-		m.MaxVisible = maxVis
-		m.setCursor(m.Cursor)
+	m.TotalItems = len(m.Items)
 
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
-			m.Canceled = true
-			return m, tea.Quit
-		case tea.KeyUp:
-			m.setCursor(m.Cursor - 1)
-			return m, nil
-		case tea.KeyDown:
-			m.setCursor(m.Cursor + 1)
-			return m, nil
-		case tea.KeyPgUp:
-			m.setCursor(m.Cursor - m.MaxVisible)
-			return m, nil
-		case tea.KeyPgDown:
-			m.setCursor(m.Cursor + m.MaxVisible)
-			return m, nil
-		case tea.KeyHome:
-			m.setCursor(0)
-			return m, nil
-		case tea.KeyEnd:
-			m.setCursor(len(m.Items) - 1)
-			return m, nil
-		case tea.KeySpace:
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if keyMsg.Type == tea.KeySpace {
 			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
 				m.Items[m.Cursor].Selected = !m.Items[m.Cursor].Selected
 			}
 			return m, nil
-		case tea.KeyEnter:
-			m.Confirmed = true
-			return m, tea.Quit
 		}
 
-		key := strings.ToLower(msg.String())
+		key := strings.ToLower(keyMsg.String())
 		switch key {
-		case "q", "esc", "ctrl+c":
-			m.Canceled = true
-			return m, tea.Quit
-		case "up", "k":
-			m.setCursor(m.Cursor - 1)
-		case "down", "j":
-			m.setCursor(m.Cursor + 1)
-		case "pgup", "b":
-			m.setCursor(m.Cursor - m.MaxVisible)
-		case "pgdown", "f":
-			m.setCursor(m.Cursor + m.MaxVisible)
-		case "g", "home":
-			m.setCursor(0)
-		case "G", "end":
-			m.setCursor(len(m.Items) - 1)
 		case "space", " ":
 			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
 				m.Items[m.Cursor].Selected = !m.Items[m.Cursor].Selected
 			}
+			return m, nil
 		case "a":
 			allSelected := true
 			for _, item := range m.Items {
@@ -163,11 +63,14 @@ func (m *InitModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i := range m.Items {
 				m.Items[i].Selected = !allSelected
 			}
-		case "enter":
-			m.Confirmed = true
-			return m, tea.Quit
+			return m, nil
 		}
 	}
+
+	if handled, cmd := m.HandleMessage(msg); handled {
+		return m, cmd
+	}
+
 	return m, nil
 }
 

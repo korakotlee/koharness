@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/korakotlee/koharness/pkg/harness"
+	"github.com/korakotlee/koharness/pkg/harvester"
 	"github.com/korakotlee/koharness/pkg/symlink"
 	"github.com/korakotlee/koharness/pkg/tui"
 	"github.com/spf13/cobra"
@@ -60,7 +60,7 @@ var InitCmd = &cobra.Command{
 			return fmt.Errorf("failed cloning repository: %w", err)
 		}
 
-		items, err := scanRepoCapabilities(targetPath, homeDir)
+		items, err := harvester.ScanRepoCapabilities(targetPath, homeDir)
 		if err != nil {
 			return fmt.Errorf("failed scanning repository capabilities: %w", err)
 		}
@@ -112,71 +112,6 @@ var InitCmd = &cobra.Command{
 
 		return nil
 	},
-}
-
-func scanRepoCapabilities(repoPath string, homeDir string) ([]tui.InitCapabilityItem, error) {
-	var items []tui.InitCapabilityItem
-
-	detector, err := harness.NewDetector(harness.WithHomeDir(homeDir))
-	if err != nil {
-		return nil, err
-	}
-	adapters := detector.GetAdapters()
-
-	categories := []string{"skills", "prompts", "mcp"}
-	for _, cat := range categories {
-		catPath := filepath.Join(repoPath, cat)
-		entries, err := os.ReadDir(catPath)
-		if err != nil {
-			continue
-		}
-
-		for _, entry := range entries {
-			assetRepoPath := filepath.Join(catPath, entry.Name())
-
-			for _, adapter := range adapters {
-				paths := adapter.GetConfigPaths()
-				targetDir := ""
-				switch cat {
-				case "skills":
-					targetDir = paths.SkillsDir
-				case "prompts", "workflows":
-					targetDir = paths.WorkflowsDir
-				case "mcp":
-					targetDir = paths.MCPDir
-				}
-
-				if targetDir == "" {
-					continue
-				}
-
-				targetAssetPath := filepath.Join(targetDir, entry.Name())
-
-				hasConflict := false
-				if info, err := os.Stat(targetAssetPath); err == nil {
-					_ = info
-					hasConflict = true
-				}
-
-				itemType := cat
-				if strings.HasSuffix(itemType, "s") {
-					itemType = strings.TrimSuffix(itemType, "s")
-				}
-
-				items = append(items, tui.InitCapabilityItem{
-					Type:        itemType,
-					Name:        entry.Name(),
-					HarnessID:   adapter.Name(),
-					RepoPath:    assetRepoPath,
-					TargetPath:  targetAssetPath,
-					HasConflict: hasConflict,
-					Selected:    true,
-				})
-			}
-		}
-	}
-
-	return items, nil
 }
 
 func init() {

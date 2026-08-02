@@ -3,11 +3,10 @@ package harvester
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/korakotlee/koharness/pkg/fsutil"
 	"github.com/korakotlee/koharness/pkg/harness"
 	"github.com/korakotlee/koharness/pkg/symlink"
 	"github.com/spf13/afero"
@@ -225,7 +224,7 @@ func (c *Creator) appendMCPOverride(item DiscoveredCapability, targetFile string
 		return err
 	}
 
-	return afero.WriteFile(c.fs, targetFile, updatedBytes, 0644)
+	return afero.WriteFile(c.fs, targetFile, updatedBytes, 0600)
 }
 
 func (c *Creator) copyAsset(src, dst string) error {
@@ -235,62 +234,9 @@ func (c *Creator) copyAsset(src, dst string) error {
 	}
 
 	if info.IsDir() {
-		return c.copyDir(src, dst)
+		return fsutil.CopyDir(c.fs, src, dst)
 	}
-	return c.copyFile(src, dst)
-}
-
-func (c *Creator) copyFile(src, dst string) error {
-	if err := c.fs.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-
-	srcFile, err := c.fs.Open(src)
-	if err != nil {
-		return err
-	}
-	defer srcFile.Close()
-
-	srcInfo, err := srcFile.Stat()
-	if err != nil {
-		return err
-	}
-
-	dstFile, err := c.fs.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, srcInfo.Mode())
-	if err != nil {
-		return err
-	}
-	defer dstFile.Close()
-
-	_, err = io.Copy(dstFile, srcFile)
-	return err
-}
-
-func (c *Creator) copyDir(src, dst string) error {
-	if err := c.fs.MkdirAll(dst, 0755); err != nil {
-		return err
-	}
-
-	entries, err := afero.ReadDir(c.fs, src)
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		srcChild := filepath.Join(src, entry.Name())
-		dstChild := filepath.Join(dst, entry.Name())
-
-		if entry.IsDir() {
-			if err := c.copyDir(srcChild, dstChild); err != nil {
-				return err
-			}
-		} else {
-			if err := c.copyFile(srcChild, dstChild); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+	return fsutil.CopyFile(c.fs, src, dst)
 }
 
 func (c *Creator) runGitInit(dir string) error {

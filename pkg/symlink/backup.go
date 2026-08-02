@@ -2,13 +2,13 @@ package symlink
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/korakotlee/koharness/pkg/fsutil"
 	"github.com/spf13/afero"
 )
 
@@ -60,7 +60,7 @@ func (bm *BackupManager) EnsureSession() (string, error) {
 	bm.timestamp = time.Now().Format("20060102-150405")
 	bm.sessionDir = filepath.Join(bm.backupRoot, bm.timestamp)
 
-	if err := bm.fs.MkdirAll(bm.sessionDir, 0755); err != nil {
+	if err := bm.fs.MkdirAll(bm.sessionDir, 0700); err != nil {
 		return "", fmt.Errorf("failed to create backup session directory %s: %w", bm.sessionDir, err)
 	}
 
@@ -107,7 +107,7 @@ func (bm *BackupManager) Backup(targetPath string) (*BackupRecord, error) {
 
 	backupDest := filepath.Join(sessionDir, relPath)
 
-	if err := bm.fs.MkdirAll(filepath.Dir(backupDest), 0755); err != nil {
+	if err := bm.fs.MkdirAll(filepath.Dir(backupDest), 0700); err != nil {
 		return nil, fmt.Errorf("failed to create parent backup directory for %s: %w", backupDest, err)
 	}
 
@@ -141,11 +141,11 @@ func (bm *BackupManager) Backup(targetPath string) (*BackupRecord, error) {
 
 	if info.IsDir() {
 		record.IsDirectory = true
-		if err := bm.copyDir(targetPath, backupDest); err != nil {
+		if err := fsutil.CopyDir(bm.fs, targetPath, backupDest); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := bm.copyFile(targetPath, backupDest); err != nil {
+		if err := fsutil.CopyFile(bm.fs, targetPath, backupDest); err != nil {
 			return nil, err
 		}
 	}
@@ -172,58 +172,6 @@ func (bm *BackupManager) computeRelativePath(targetPath string) (string, error) 
 	// Fallback to stripping root separator
 	cleaned := filepath.Clean(absTarget)
 	return strings.TrimPrefix(cleaned, string(filepath.Separator)), nil
-}
-
-func (bm *BackupManager) copyFile(src, dst string) error {
-	srcFile, err := bm.fs.Open(src)
-	if err != nil {
-		return fmt.Errorf("failed to open source file %s: %w", src, err)
-	}
-	defer srcFile.Close()
-
-	srcInfo, err := srcFile.Stat()
-	if err != nil {
-		return fmt.Errorf("failed to stat source file %s: %w", src, err)
-	}
-
-	dstFile, err := bm.fs.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, srcInfo.Mode())
-	if err != nil {
-		return fmt.Errorf("failed to create destination backup file %s: %w", dst, err)
-	}
-	defer dstFile.Close()
-
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return fmt.Errorf("failed copying content from %s to %s: %w", src, dst, err)
-	}
-
-	return nil
-}
-
-func (bm *BackupManager) copyDir(src, dst string) error {
-	if err := bm.fs.MkdirAll(dst, 0755); err != nil {
-		return fmt.Errorf("failed to create destination dir %s: %w", dst, err)
-	}
-
-	entries, err := afero.ReadDir(bm.fs, src)
-	if err != nil {
-		return fmt.Errorf("failed to read source dir %s: %w", src, err)
-	}
-
-	for _, entry := range entries {
-		srcChild := filepath.Join(src, entry.Name())
-		dstChild := filepath.Join(dst, entry.Name())
-
-		if entry.IsDir() {
-			if err := bm.copyDir(srcChild, dstChild); err != nil {
-				return err
-			}
-		} else {
-			if err := bm.copyFile(srcChild, dstChild); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 func (bm *BackupManager) copySymlink(src, dst, target string) error {

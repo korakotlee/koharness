@@ -13,24 +13,15 @@ import (
 
 // HarvestModel represents the interactive Bubbletea TUI model for capability selection.
 type HarvestModel struct {
-	Items        []harvester.DiscoveredCapability
-	Cursor       int
-	Offset       int
-	MaxVisible   int
-	Confirmed    bool
-	Canceled     bool
-	WindowHeight int
+	*SelectableListModel
+	Items []harvester.DiscoveredCapability
 }
 
 // NewHarvestModel constructs a new HarvestModel pointer with the provided discovered capabilities.
 func NewHarvestModel(items []harvester.DiscoveredCapability) *HarvestModel {
 	return &HarvestModel{
-		Items:      items,
-		Cursor:     0,
-		Offset:     0,
-		MaxVisible: 10,
-		Confirmed:  false,
-		Canceled:   false,
+		SelectableListModel: NewSelectableListModel(len(items)),
+		Items:               items,
 	}
 }
 
@@ -39,115 +30,36 @@ func (m *HarvestModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m *HarvestModel) setCursor(index int) {
-	if len(m.Items) == 0 {
-		m.Cursor = 0
-		m.Offset = 0
-		return
-	}
-
-	if index < 0 {
-		index = 0
-	}
-	if index >= len(m.Items) {
-		index = len(m.Items) - 1
-	}
-	m.Cursor = index
-
-	if m.MaxVisible <= 0 {
-		m.MaxVisible = 10
-	}
-
-	// Adjust scroll window offset
-	if m.Cursor < m.Offset {
-		m.Offset = m.Cursor
-	} else if m.Cursor >= m.Offset+m.MaxVisible {
-		m.Offset = m.Cursor - m.MaxVisible + 1
-	}
-
-	if m.Offset < 0 {
-		m.Offset = 0
-	}
-}
-
 // Update processes terminal input events and updates cursor and selection states.
 func (m *HarvestModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.WindowHeight = msg.Height
-		maxVis := msg.Height - 12
-		if maxVis < 5 {
-			maxVis = 5
-		}
-		m.MaxVisible = maxVis
-		m.setCursor(m.Cursor)
+	m.TotalItems = len(m.Items)
 
-	case tea.KeyMsg:
-		// Explicit KeyType matching
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
-			m.Canceled = true
-			return m, tea.Quit
-		case tea.KeyUp:
-			m.setCursor(m.Cursor - 1)
-			return m, nil
-		case tea.KeyDown:
-			m.setCursor(m.Cursor + 1)
-			return m, nil
-		case tea.KeyPgUp:
-			m.setCursor(m.Cursor - m.MaxVisible)
-			return m, nil
-		case tea.KeyPgDown:
-			m.setCursor(m.Cursor + m.MaxVisible)
-			return m, nil
-		case tea.KeyHome:
-			m.setCursor(0)
-			return m, nil
-		case tea.KeyEnd:
-			m.setCursor(len(m.Items) - 1)
-			return m, nil
-		case tea.KeySpace:
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if keyMsg.Type == tea.KeySpace {
 			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
 				m.Items[m.Cursor].ToggleImportSkip()
 			}
 			return m, nil
-		case tea.KeyEnter:
-			m.Confirmed = true
-			return m, tea.Quit
 		}
 
-		// String representation matching fallback (without strings.TrimSpace)
-		key := strings.ToLower(msg.String())
+		key := strings.ToLower(keyMsg.String())
 		switch key {
-		case "q", "esc", "ctrl+c":
-			m.Canceled = true
-			return m, tea.Quit
-		case "up", "k":
-			m.setCursor(m.Cursor - 1)
-		case "down", "j":
-			m.setCursor(m.Cursor + 1)
-		case "pgup", "b":
-			m.setCursor(m.Cursor - m.MaxVisible)
-		case "pgdown", "f":
-			m.setCursor(m.Cursor + m.MaxVisible)
-		case "g", "home":
-			m.setCursor(0)
-		case "G", "end":
-			m.setCursor(len(m.Items) - 1)
 		case "space", " ":
 			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
 				m.Items[m.Cursor].ToggleImportSkip()
 			}
+			return m, nil
 		case "i":
 			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
 				m.Items[m.Cursor].ToggleIgnore()
 			}
+			return m, nil
 		case "s":
 			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
 				m.Items[m.Cursor].IsSecret = !m.Items[m.Cursor].IsSecret
 			}
+			return m, nil
 		case "a":
-			// Toggle all items between Import and Skip
 			allSelected := true
 			for _, item := range m.Items {
 				if item.GetState() != harvester.StateImport {
@@ -162,11 +74,14 @@ func (m *HarvestModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.Items[idx].SetState(harvester.StateImport)
 				}
 			}
-		case "enter":
-			m.Confirmed = true
-			return m, tea.Quit
+			return m, nil
 		}
 	}
+
+	if handled, cmd := m.HandleMessage(msg); handled {
+		return m, cmd
+	}
+
 	return m, nil
 }
 
