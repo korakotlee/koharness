@@ -47,8 +47,8 @@ func TestHarvestModel_KeyNavigationAndToggle(t *testing.T) {
 
 	// Initial view check
 	v0 := model.View()
-	if !strings.Contains(v0, "Selected: 2/3 capabilities") {
-		t.Errorf("expected header counter 'Selected: 2/3 capabilities' in view output")
+	if !strings.Contains(v0, "Selection: 2 Import | 1 Skip | 0 Ignore") {
+		t.Errorf("expected header counter 'Selection: 2 Import | 1 Skip | 0 Ignore' in view output, got: %s", v0)
 	}
 
 	// Move down using KeyDown
@@ -79,10 +79,20 @@ func TestHarvestModel_KeyNavigationAndToggle(t *testing.T) {
 		t.Errorf("expected item 1 Selected to be true after space")
 	}
 
-	// Header should update to 3/3
+	// Toggle Ignore state on item 1 with 'i'
+	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	m = updated.(*tui.HarvestModel)
+	if m.Items[1].GetState() != harvester.StateIgnore {
+		t.Errorf("expected item 1 to be in StateIgnore after 'i'")
+	}
+	if !m.Items[1].Ignored {
+		t.Errorf("expected item 1 Ignored to be true after 'i'")
+	}
+
+	// Header should update counter
 	v1 := m.View()
-	if !strings.Contains(v1, "Selected: 3/3 capabilities") {
-		t.Errorf("expected header counter 'Selected: 3/3 capabilities' after toggle")
+	if !strings.Contains(v1, "Selection: 2 Import | 0 Skip | 1 Ignore") {
+		t.Errorf("expected header counter 'Selection: 2 Import | 0 Skip | 1 Ignore' after toggle, got: %s", v1)
 	}
 
 	// Toggle secret override with 's'

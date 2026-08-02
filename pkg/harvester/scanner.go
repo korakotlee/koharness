@@ -14,6 +14,15 @@ import (
 	"github.com/spf13/afero"
 )
 
+// HarvestState represents the 3 selection states for a discovered capability.
+type HarvestState int
+
+const (
+	StateImport HarvestState = iota
+	StateSkip
+	StateIgnore
+)
+
 // DiscoveredCapability represents a standalone capability discovered during workstation scanning.
 type DiscoveredCapability struct {
 	// HarnessID identifies which client harness owns this asset.
@@ -26,9 +35,56 @@ type DiscoveredCapability struct {
 	SourcePath string
 	// Selected indicates whether the user opted to harvest this item into the repository.
 	Selected bool
+	// Ignored indicates whether the user opted to ignore this item locally on this machine.
+	Ignored bool
 	// IsSecret indicates whether the capability contains sensitive keys/tokens to keep as local override.
 	IsSecret bool
 }
+
+// GetState returns the current 3-state HarvestState of the capability.
+func (c *DiscoveredCapability) GetState() HarvestState {
+	if c.Ignored {
+		return StateIgnore
+	}
+	if c.Selected {
+		return StateImport
+	}
+	return StateSkip
+}
+
+// SetState updates Selected and Ignored fields based on the provided HarvestState.
+func (c *DiscoveredCapability) SetState(state HarvestState) {
+	switch state {
+	case StateImport:
+		c.Selected = true
+		c.Ignored = false
+	case StateSkip:
+		c.Selected = false
+		c.Ignored = false
+	case StateIgnore:
+		c.Selected = false
+		c.Ignored = true
+	}
+}
+
+// ToggleImportSkip toggles between StateImport and StateSkip.
+func (c *DiscoveredCapability) ToggleImportSkip() {
+	if c.GetState() == StateImport {
+		c.SetState(StateSkip)
+	} else {
+		c.SetState(StateImport)
+	}
+}
+
+// ToggleIgnore toggles between StateIgnore and StateSkip.
+func (c *DiscoveredCapability) ToggleIgnore() {
+	if c.GetState() == StateIgnore {
+		c.SetState(StateSkip)
+	} else {
+		c.SetState(StateIgnore)
+	}
+}
+
 
 // ScannerOption configures operational parameters for Scanner instances.
 type ScannerOption func(*Scanner)
@@ -95,6 +151,64 @@ func (s *Scanner) ScanAll() ([]DiscoveredCapability, error) {
 
 	return results, nil
 }
+
+// ScanForRepo scans all client harnesses and filters out capabilities that are ignored in .koharness.local.yaml or already present/symlinked in repoPath.
+func (s *Scanner) ScanForRepo(repoPath string) ([]DiscoveredCapability, error) {
+	all, err := s.ScanAll()
+	if err != nil {
+		return nil, err
+	}
+
+	localCfg, err := LoadLocalConfig(s.fs, repoPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var filtered []DiscoveredCapability
+	for _, item := range all {
+		if localCfg.IsIgnored(item.Type, item.Name, item.HarnessID) {
+			continue
+		}
+
+		if s.isAlreadyTrackedOrSymlinked(item, repoPath) {
+			continue
+		}
+
+		filtered = append(filtered, item)
+	}
+
+	return filtered, nil
+}
+
+func (s *Scanner) isAlreadyTrackedOrSymlinked(item DiscoveredCapability, repoPath string) bool {
+	if lstater, ok := s.fs.(afero.Lstater); ok {
+		info, _, err := lstater.LstatIfPossible(item.SourcePath)
+		if err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return true
+		}
+	} else {
+		if info, err := os.Lstat(item.SourcePath); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return true
+		}
+	}
+
+	var targetSubDir string
+	switch item.Type {
+	case harness.CapabilitySkill:
+		targetSubDir = "skills"
+	case harness.CapabilityWorkflow, harness.CapabilityPrompt:
+		targetSubDir = "prompts"
+	case harness.CapabilityMCP:
+		targetSubDir = "mcp"
+	default:
+		targetSubDir = "skills"
+	}
+
+	targetRepoPath := filepath.Join(repoPath, targetSubDir, item.Name)
+	exists, _ := afero.Exists(s.fs, targetRepoPath)
+	return exists
+}
+
 
 // ScanAdapter discovers capabilities for a specific client harness adapter.
 func (s *Scanner) ScanAdapter(adapter harness.HarnessAdapter) ([]DiscoveredCapability, error) {

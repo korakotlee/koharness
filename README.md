@@ -111,6 +111,7 @@ Refer to repository agent memory steering rules at `~/.koharness/repo/memory/AGE
 | :--- | :--- |
 | `koharness init` | Interactively detect local AI harnesses, backup legacy configs, and symlink repository capabilities. |
 | `koharness create [repo-path]` | Harvest unmanaged local capabilities, bootstrap a new dotfiles repo, back up original assets, and setup symlinks. |
+| `koharness discover [repo-path]` | Discover unmanaged local capabilities, present interactive 3-state checklist (Import, Skip, Ignore), persist ignores into `.koharness.local.yaml`, and import/symlink selected assets. |
 | `koharness repo` | Navigate to, launch a subshell inside, or open your local dotfiles repository directory. |
 | `koharness sync` | Pull remote updates via rebase, merge local MCP overrides, expand env vars, and update symlinks. |
 | `koharness doctor` | Audit active symlinks, verify executable permissions, and check missing environment variables. |
@@ -126,6 +127,18 @@ koharness create
 
 # Harvest into a custom repository path in non-interactive mode
 koharness create ~/dev/my-ai-dotfiles --non-interactive
+```
+
+### Discovering Unmanaged Capabilities (`koharness discover`)
+
+Inspect local AI client harnesses for new unmanaged skills, prompts, or MCP servers added after initial repository setup, select action states (`[x]` Import, `[ ]` Skip, `[i]` Ignore), and save machine-local ignore rules to `.koharness.local.yaml`:
+
+```bash
+# Interactively discover new unmanaged capabilities for ~/.koharness/repo
+koharness discover
+
+# Discover capabilities for a specific repository path in non-interactive mode
+koharness discover ~/dev/my-ai-dotfiles --non-interactive
 ```
 
 ### Initializing an Existing Repository (`koharness init`)

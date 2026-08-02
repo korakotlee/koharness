@@ -108,7 +108,7 @@ func (m *HarvestModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case tea.KeySpace:
 			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
-				m.Items[m.Cursor].Selected = !m.Items[m.Cursor].Selected
+				m.Items[m.Cursor].ToggleImportSkip()
 			}
 			return m, nil
 		case tea.KeyEnter:
@@ -136,23 +136,31 @@ func (m *HarvestModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setCursor(len(m.Items) - 1)
 		case "space", " ":
 			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
-				m.Items[m.Cursor].Selected = !m.Items[m.Cursor].Selected
+				m.Items[m.Cursor].ToggleImportSkip()
+			}
+		case "i":
+			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
+				m.Items[m.Cursor].ToggleIgnore()
 			}
 		case "s":
 			if len(m.Items) > 0 && m.Cursor >= 0 && m.Cursor < len(m.Items) {
 				m.Items[m.Cursor].IsSecret = !m.Items[m.Cursor].IsSecret
 			}
 		case "a":
-			// Toggle all items
+			// Toggle all items between Import and Skip
 			allSelected := true
 			for _, item := range m.Items {
-				if !item.Selected {
+				if item.GetState() != harvester.StateImport {
 					allSelected = false
 					break
 				}
 			}
-			for i := range m.Items {
-				m.Items[i].Selected = !allSelected
+			for idx := range m.Items {
+				if allSelected {
+					m.Items[idx].SetState(harvester.StateSkip)
+				} else {
+					m.Items[idx].SetState(harvester.StateImport)
+				}
 			}
 		case "enter":
 			m.Confirmed = true
@@ -169,15 +177,20 @@ func (m *HarvestModel) View() string {
 	b.WriteString(RenderBanner() + "\n\n")
 	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(ColorViolet).Render("HARVEST DISCOVERED CAPABILITIES") + "\n")
 
-	selectedCount := 0
+	importCount, skipCount, ignoreCount := 0, 0, 0
 	for _, item := range m.Items {
-		if item.Selected {
-			selectedCount++
+		switch item.GetState() {
+		case harvester.StateImport:
+			importCount++
+		case harvester.StateSkip:
+			skipCount++
+		case harvester.StateIgnore:
+			ignoreCount++
 		}
 	}
 
-	b.WriteString(StyleMuted.Render(fmt.Sprintf("Selected: %d/%d capabilities", selectedCount, len(m.Items))) + "\n")
-	b.WriteString(StyleMuted.Render("Controls: [↑/↓ or j/k] Navigate | [space] Toggle | [a] Toggle All | [s] Secret | [enter] Confirm | [q] Cancel") + "\n\n")
+	b.WriteString(StyleMuted.Render(fmt.Sprintf("Selection: %d Import | %d Skip | %d Ignore (Total: %d)", importCount, skipCount, ignoreCount, len(m.Items))) + "\n")
+	b.WriteString(StyleMuted.Render("Controls: [↑/↓ or j/k] Navigate | [space] Import/Skip | [i] Ignore | [a] Toggle All | [s] Secret | [enter] Confirm | [q] Cancel") + "\n\n")
 
 	if len(m.Items) == 0 {
 		b.WriteString(StyleMuted.Render("No unmanaged capabilities discovered.") + "\n\n")
@@ -210,8 +223,15 @@ func (m *HarvestModel) View() string {
 		}
 
 		checkStr := "[ ]"
-		if item.Selected {
+		ignoreBadge := ""
+		switch item.GetState() {
+		case harvester.StateImport:
 			checkStr = lipgloss.NewStyle().Bold(true).Foreground(ColorGreen).Render("[x]")
+		case harvester.StateSkip:
+			checkStr = lipgloss.NewStyle().Foreground(ColorMuted).Render("[ ]")
+		case harvester.StateIgnore:
+			checkStr = lipgloss.NewStyle().Bold(true).Foreground(ColorAmber).Render("[i]")
+			ignoreBadge = lipgloss.NewStyle().Bold(true).Foreground(ColorAmber).Render(" (Ignore - saved to .koharness.local.yaml)")
 		}
 
 		secretStr := ""
@@ -223,11 +243,14 @@ func (m *HarvestModel) View() string {
 		harnessBadge := lipgloss.NewStyle().Foreground(ColorMuted).Render(fmt.Sprintf("(%s)", item.HarnessID))
 
 		nameStr := item.Name
+		if item.GetState() == harvester.StateIgnore {
+			nameStr = lipgloss.NewStyle().Strikethrough(true).Foreground(ColorMuted).Render(item.Name)
+		}
 		if isFocused {
 			nameStr = lipgloss.NewStyle().Bold(true).Foreground(ColorCyan).Underline(true).Render(item.Name)
 		}
 
-		line := fmt.Sprintf("%s%s %s %s %s%s\n", cursorStr, checkStr, typeBadge, nameStr, harnessBadge, secretStr)
+		line := fmt.Sprintf("%s%s %s %s %s%s%s\n", cursorStr, checkStr, typeBadge, nameStr, harnessBadge, secretStr, ignoreBadge)
 		b.WriteString(line)
 	}
 
