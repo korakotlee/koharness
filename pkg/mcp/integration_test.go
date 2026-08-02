@@ -1,9 +1,12 @@
 package mcp_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
+	"github.com/korakotlee/koharness/pkg/credentials"
 	"github.com/korakotlee/koharness/pkg/mcp"
 	"github.com/spf13/afero"
 )
@@ -85,5 +88,80 @@ func TestEndToEndMCPMergingAndExpansion(t *testing.T) {
 	localEnv := localTool["env"].(map[string]interface{})
 	if localEnv["API_KEY"] != "secret-key-12345" {
 		t.Errorf("expected expanded API_KEY, got %v", localEnv["API_KEY"])
+	}
+}
+
+type mockResolver struct {
+	resolved map[string]string
+}
+
+func (m *mockResolver) ProviderName() string {
+	return "Mock Provider"
+}
+
+func (m *mockResolver) CanResolve(uri string) bool {
+	return uri == "pass://Vault/Anthropic/api_key" || uri == "pass://Vault/Missing/key"
+}
+
+func (m *mockResolver) Resolve(ctx context.Context, uri string) (string, error) {
+	if val, ok := m.resolved[uri]; ok {
+		return val, nil
+	}
+	return "", errors.New("key not found in mock provider")
+}
+
+func TestEndToEndMCPCredentialInjectionAndFallback(t *testing.T) {
+	templateJSON := []byte(`{
+		"mcpServers": {
+			"anthropic": {
+				"command": "npx",
+				"args": ["-y", "@modelcontextprotocol/server-anthropic"],
+				"env": {
+					"ANTHROPIC_API_KEY": "pass://Vault/Anthropic/api_key",
+					"FALLBACK_KEY": "pass://Vault/Missing/key"
+				}
+			}
+		}
+	}`)
+
+	mock := &mockResolver{
+		resolved: map[string]string{
+			"pass://Vault/Anthropic/api_key": "proton-pass-secret-token-9999",
+		},
+	}
+
+	var warnings []string
+	opts := mcp.EnvOptions{
+		HomeDir:   "/home/testuser",
+		Resolvers: []credentials.CredentialResolver{mock},
+		WarningHandler: func(warning string) {
+			warnings = append(warnings, warning)
+		},
+	}
+
+	resultBytes, err := mcp.ExpandJSONTokens(templateJSON, opts)
+	if err != nil {
+		t.Fatalf("failed expanding credential tokens: %v", err)
+	}
+
+	var rendered map[string]interface{}
+	if err := json.Unmarshal(resultBytes, &rendered); err != nil {
+		t.Fatalf("failed unmarshaling expanded JSON: %v", err)
+	}
+
+	servers := rendered["mcpServers"].(map[string]interface{})
+	anthropic := servers["anthropic"].(map[string]interface{})
+	envMap := anthropic["env"].(map[string]interface{})
+
+	if envMap["ANTHROPIC_API_KEY"] != "proton-pass-secret-token-9999" {
+		t.Errorf("expected ANTHROPIC_API_KEY to be resolved, got %v", envMap["ANTHROPIC_API_KEY"])
+	}
+
+	if envMap["FALLBACK_KEY"] != "pass://Vault/Missing/key" {
+		t.Errorf("expected missing key to retain original URI fallback, got %v", envMap["FALLBACK_KEY"])
+	}
+
+	if len(warnings) != 1 {
+		t.Errorf("expected 1 resolution warning, got %d (%v)", len(warnings), warnings)
 	}
 }

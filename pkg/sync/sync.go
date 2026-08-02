@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/korakotlee/koharness/pkg/credentials"
 	"github.com/korakotlee/koharness/pkg/git"
 	"github.com/korakotlee/koharness/pkg/harness"
 	"github.com/korakotlee/koharness/pkg/mcp"
@@ -188,6 +189,18 @@ func (e *SyncEngine) refreshHarnesses() (int, bool, error) {
 						if bErr == nil && oErr == nil {
 							mergedBytes, mErr := mcp.MergeJSON(baseBytes, overrideBytes)
 							if mErr == nil {
+								resolvers := []credentials.CredentialResolver{credentials.NewProtonPassResolver()}
+								warningHandler := func(warning string) {
+									fmt.Fprintln(e.opts.ErrOut, tui.BadgeWarn("CREDENTIAL WARNING"), warning)
+								}
+								expandedBytes, expErr := mcp.ExpandJSONTokens(mergedBytes, mcp.EnvOptions{
+									HomeDir:        e.opts.HomeDir,
+									Resolvers:      resolvers,
+									WarningHandler: warningHandler,
+								})
+								if expErr == nil {
+									mergedBytes = expandedBytes
+								}
 								_ = afero.WriteFile(e.opts.Fs, targetAssetPath, mergedBytes, 0644)
 								mcpMerged = true
 							}
@@ -202,6 +215,9 @@ func (e *SyncEngine) refreshHarnesses() (int, bool, error) {
 			}
 		}
 	}
+
+	// 5. Refresh client harness AGENTS.md memory navigation rules
+	_ = harness.SyncMemoryNavigationRules(e.opts.Fs, e.opts.HomeDir, e.opts.RepoPath)
 
 	return linkedCount, mcpMerged, nil
 }

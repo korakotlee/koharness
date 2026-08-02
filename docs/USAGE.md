@@ -93,3 +93,74 @@ Test rendering in environments without ANSI colors:
 ```bash
 NO_COLOR=1 ./koharness --version
 ```
+
+## 5. Proton Pass CLI Integration & MCP Credential Injection
+
+KoHarness integrates with Proton Pass CLI (`pass-cli`) to resolve external secret reference URIs during `koharness sync` operations. This allows dotfiles repositories to store template configurations using secret URIs rather than unencrypted API keys.
+
+### Installing and Setting Up Proton Pass CLI
+
+1. **Install `pass-cli`**:
+   - macOS / Homebrew:
+     ```bash
+     brew install protonpass-cli
+     ```
+   - Binary Download: Download the latest binary from the official Proton Pass releases repository and ensure `pass-cli` is added to your system `$PATH`.
+
+2. **Authenticate with Proton Pass**:
+   - Log in to your Proton account using the CLI:
+     ```bash
+     pass-cli login
+     ```
+   - Verify authentication status:
+     ```bash
+     pass-cli status
+     ```
+
+### Secret URI Syntax
+
+Secret URIs follow the format:
+
+```
+pass://<vault>/<item>/<field>
+```
+
+- `<vault>`: Name of your Proton Pass vault (e.g., `Development`).
+- `<item>`: Name of the stored login or secret item (e.g., `Anthropic`).
+- `<field>`: Field name containing the secret (e.g., `api_key` or `password`).
+
+### Example: Setting Up an MCP Server with Proton Pass and KoHarness
+
+1. **Create the Secret in Proton Pass**:
+   In your Proton Pass vault `Development`, create a secret item `Anthropic` with a custom field `api_key` set to your Anthropic API key (`sk-ant-api03-...`).
+
+2. **Define Template Configuration in your KoHarness Repository**:
+   In your dotfiles repository at `mcp/anthropic.json`:
+
+   ```json
+   {
+     "mcpServers": {
+       "anthropic": {
+         "command": "npx",
+         "args": ["-y", "@modelcontextprotocol/server-anthropic"],
+         "env": {
+           "ANTHROPIC_API_KEY": "pass://Development/Anthropic/api_key"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Run `koharness sync`**:
+   ```bash
+   koharness sync
+   ```
+   KoHarness automatically detects `pass-cli`, resolves `pass://Development/Anthropic/api_key`, and injects the actual API key string into your local client harness configurations (e.g., `~/.gemini/antigravity-ide/mcp/anthropic.json`).
+
+### Fallback Behavior
+
+If `pass-cli` is not installed on the system, logged out, or if a specific secret key is missing:
+- KoHarness outputs a non-fatal `[CREDENTIAL WARNING]` pill message.
+- Sync falls back to existing local environment variables or `mcp.local.json` entries.
+- The `koharness sync` process completes smoothly without failing.
+

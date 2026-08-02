@@ -10,6 +10,8 @@ import (
 type DoctorOptions struct {
 	// HomeDir overrides the user home directory location for testing or custom environments.
 	HomeDir string
+	// RepoRoot specifies the target repository path for inspecting memory layout and link integrity.
+	RepoRoot string
 	// SymlinkTargetDirs overrides specific directories to scan for symlinks.
 	SymlinkTargetDirs []string
 }
@@ -18,6 +20,7 @@ type DoctorOptions struct {
 type DoctorResult struct {
 	SymlinkDiagnostics []SymlinkDiagnostic
 	HarnessStatuses    []HarnessHealthStatus
+	Memory             *MemoryDiagnostic
 }
 
 // HasBrokenSymlinks returns true if any inspected symlinks are broken.
@@ -41,7 +44,7 @@ func (r *DoctorResult) BrokenSymlinkCount() int {
 	return count
 }
 
-// Run executes environment health inspections including symlink target integrity and client harness configuration access.
+// Run executes environment health inspections including symlink target integrity, client harness configuration access, and 3-layer agent memory health.
 func Run(opts DoctorOptions) (*DoctorResult, error) {
 	homeDir := opts.HomeDir
 	if homeDir == "" {
@@ -73,6 +76,14 @@ func Run(opts DoctorOptions) (*DoctorResult, error) {
 		return nil, fmt.Errorf("harness diagnostic check failed: %w", err)
 	}
 
+	var memDiag *MemoryDiagnostic
+	if opts.RepoRoot != "" {
+		m, mErr := InspectMemory(opts.RepoRoot)
+		if mErr == nil {
+			memDiag = m
+		}
+	}
+
 	// Filter out non-symlink diagnostic entries if any
 	var actualSymlinkDiags []SymlinkDiagnostic
 	for _, diag := range symlinkDiags {
@@ -84,5 +95,6 @@ func Run(opts DoctorOptions) (*DoctorResult, error) {
 	return &DoctorResult{
 		SymlinkDiagnostics: actualSymlinkDiags,
 		HarnessStatuses:    harnessStatuses,
+		Memory:             memDiag,
 	}, nil
 }

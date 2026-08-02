@@ -62,5 +62,12 @@ func Run(opts LintOptions) (*LintResult, error) {
 	}
 	allIssues = append(allIssues, frontmatterIssues...)
 
+	// 4. Agent Memory 3-Layer Integrity
+	memIssues, err := ValidateMemory(root)
+	if err != nil {
+		return nil, fmt.Errorf("memory lint failed: %w", err)
+	}
+	allIssues = append(allIssues, memIssues...)
+
 	return &LintResult{Issues: allIssues}, nil
 }

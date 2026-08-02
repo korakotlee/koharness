@@ -1,21 +1,29 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/korakotlee/koharness/pkg/credentials"
 )
 
 var envVarPattern = regexp.MustCompile(`\$\{([A-Za-z0-9_]+)\}`)
 
-// EnvOptions configures options for environment token expansion.
+// EnvOptions configures options for environment token expansion and external credential injection.
 type EnvOptions struct {
 	// HomeDir specifies an explicit home directory path override for tilde (~) expansion.
 	HomeDir string
 	// EnvMap provides explicit key-value environment variable overrides.
 	EnvMap map[string]string
+	// Resolvers specifies external credential resolvers to expand secret reference URIs (e.g. pass://).
+	Resolvers []credentials.CredentialResolver
+	// WarningHandler receives non-fatal diagnostic warning messages during secret resolution.
+	WarningHandler func(warning string)
 }
 
 // ExpandJSONTokens parses JSON bytes and replaces all string values containing ${VAR} or ~
@@ -85,6 +93,20 @@ func ExpandString(s string, opt EnvOptions) string {
 		}
 		return match // Retain token if unresolvable
 	})
+
+	// Resolve secret references via registered credential resolvers
+	for _, resolver := range opt.Resolvers {
+		if resolver != nil && resolver.CanResolve(s) {
+			resolvedSecret, err := resolver.Resolve(context.Background(), s)
+			if err == nil {
+				return resolvedSecret
+			}
+			if opt.WarningHandler != nil {
+				opt.WarningHandler(fmt.Sprintf("failed to resolve secret reference %q via %s: %v", s, resolver.ProviderName(), err))
+			}
+			return s
+		}
+	}
 
 	return s
 }

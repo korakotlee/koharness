@@ -54,6 +54,11 @@ ai-workspace/
 │   ├── mcp.json            # Shared team MCP definitions with env expansion
 │   ├── mcp.local.json      # Git-ignored local overrides & private paths
 │   └── custom-servers/     # Custom Node/Python/Go MCP server implementations
+├── memory/                 # Standardized 3-layer agent memory architecture
+│   ├── AGENTS.md           # Root navigation steering & trigger rules
+│   ├── raw/                # Immutable original source files (PDFs, PPTs, transcripts)
+│   └── wiki/               # Clean, compiled Markdown knowledge base
+│       └── INDEX.md        # Topic map with internal Markdown links
 ├── prompts/                # Standardized System & Task Prompts (.md)
 │   ├── code-review.md
 │   └── refactoring.md
@@ -67,6 +72,36 @@ ai-workspace/
     ├── antigravity/
     └── codex/
 ```
+
+---
+
+## 3-Layer Agent Memory Architecture
+
+`koharness` standardizes personal and team AI documentation using a 3-layer agent memory architecture under `memory/`:
+
+1. **`raw/` (Source of Truth):** Immutable original assets (PDFs, PPTs, audio transcripts, raw logs). Agents inspect these files for raw verification when needed, but never edit or delete them.
+2. **`wiki/` (Compiled Knowledge Base):** Clean, interlinked Markdown files synthesized from raw sources and universally readable by CLI tools and LLMs, anchored by `memory/wiki/INDEX.md`.
+3. **`AGENTS.md` (Steering & Navigation Rules):** Top-level steering file acting as a routing table that instructs local AI agents (Gemini CLI, Claude CoWork, Codex) when and how to consult specific wiki topics versus raw attachments.
+
+### Dynamic Memory Navigation Rule Injection
+
+During `koharness sync`, `koharness` automatically injects and maintains a managed `# Memory Navigation` section in local client harness steering files (`~/.gemini/AGENTS.md`, `~/.claude/AGENTS.md`, `~/.codex/AGENTS.md`):
+
+```markdown
+<!-- KOHARNESS:MEMORY_START -->
+# Memory Navigation
+
+Refer to repository agent memory steering rules at `~/.koharness/repo/memory/AGENTS.md`:
+- Core Map: Read `wiki/INDEX.md` first to locate specific topics.
+- Steering Reference: `~/.koharness/repo/memory/AGENTS.md`
+<!-- KOHARNESS:MEMORY_END -->
+```
+
+### Memory Integrity Validation (`lint` & `doctor`)
+
+- **`koharness lint`**: Validates internal Markdown link targets in `wiki/` documents and ensures `AGENTS.md` trigger paths exist.
+- **`koharness doctor`**: Audits 3-layer memory structure completeness and reports broken links or invalid steering triggers across developer environments.
+
 
 ---
 

@@ -103,3 +103,22 @@ func TestDoctorRun(t *testing.T) {
 		t.Errorf("expected 0 broken symlinks on clean temp dir, got %d", result.BrokenSymlinkCount())
 	}
 }
+
+func TestInspectMemory(t *testing.T) {
+	tmpRepo := t.TempDir()
+
+	memDir := filepath.Join(tmpRepo, "memory")
+	_ = os.MkdirAll(filepath.Join(memDir, "raw"), 0755)
+	_ = os.MkdirAll(filepath.Join(memDir, "wiki"), 0755)
+	_ = os.WriteFile(filepath.Join(memDir, "AGENTS.md"), []byte("# Steering"), 0644)
+	_ = os.WriteFile(filepath.Join(memDir, "wiki", "INDEX.md"), []byte("# Index"), 0644)
+
+	diag, err := doctor.InspectMemory(tmpRepo)
+	if err != nil {
+		t.Fatalf("unexpected error inspecting memory: %v", err)
+	}
+
+	if !diag.IsHealthy() {
+		t.Errorf("expected memory diagnostic to be healthy on complete structure")
+	}
+}

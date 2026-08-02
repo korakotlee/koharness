@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/korakotlee/koharness/pkg/doctor"
+	"github.com/korakotlee/koharness/pkg/harness"
 	"github.com/korakotlee/koharness/pkg/tui"
 	"github.com/spf13/cobra"
 )
@@ -19,7 +20,10 @@ var DoctorCmd = &cobra.Command{
 		out := cmd.OutOrStdout()
 		fmt.Fprintln(out, lipgloss.NewStyle().Bold(true).Foreground(tui.ColorViolet).Render("Running koharness doctor diagnostics...\n"))
 
-		opts := doctor.DoctorOptions{}
+		repoPath, _ := harness.GetRepoPath("")
+		opts := doctor.DoctorOptions{
+			RepoRoot: repoPath,
+		}
 		result, err := doctor.Run(opts)
 		if err != nil {
 			return fmt.Errorf("doctor diagnostic failed to execute: %w", err)
@@ -52,6 +56,25 @@ var DoctorCmd = &cobra.Command{
 				} else {
 					badge := lipgloss.NewStyle().Foreground(tui.ColorGreen).Render("[   OK   ]")
 					fmt.Fprintf(out, "  %s %s -> %s\n", badge, diag.LinkPath, diag.TargetPath)
+				}
+			}
+		}
+
+		// 3. Agent Memory 3-Layer Health Status
+		if result.Memory != nil && result.Memory.MemoryDirExists {
+			fmt.Fprintln(out, lipgloss.NewStyle().Bold(true).Foreground(tui.ColorCyan).Render("\nAgent Memory Architecture:"))
+			if result.Memory.IsHealthy() {
+				fmt.Fprintln(out, "  "+lipgloss.NewStyle().Foreground(tui.ColorGreen).Render("[   OK   ]")+" 3-layer memory structure (raw/, wiki/, AGENTS.md) intact and healthy.")
+			} else {
+				if len(result.Memory.BrokenWikiLinks) > 0 {
+					for _, b := range result.Memory.BrokenWikiLinks {
+						fmt.Fprintf(out, "  %s Broken wiki link: %s\n", lipgloss.NewStyle().Foreground(tui.ColorRed).Render("[ BROKEN ]"), b)
+					}
+				}
+				if len(result.Memory.InvalidTriggers) > 0 {
+					for _, inv := range result.Memory.InvalidTriggers {
+						fmt.Fprintf(out, "  %s Invalid trigger path: %s\n", lipgloss.NewStyle().Foreground(tui.ColorRed).Render("[ INVALID]"), inv)
+					}
 				}
 			}
 		}

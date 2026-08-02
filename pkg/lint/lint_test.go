@@ -124,3 +124,23 @@ func TestLintRun(t *testing.T) {
 		t.Errorf("expected clean run on empty repo, got issues: %v", result.Issues)
 	}
 }
+
+func TestValidateMemory(t *testing.T) {
+	tmpDir := t.TempDir()
+	memDir := filepath.Join(tmpDir, "memory")
+	wikiDir := filepath.Join(memDir, "wiki")
+	_ = os.MkdirAll(wikiDir, 0755)
+	_ = os.MkdirAll(filepath.Join(memDir, "raw"), 0755)
+
+	_ = os.WriteFile(filepath.Join(wikiDir, "INDEX.md"), []byte("# Index\n- [Missing](missing.md)\n"), 0644)
+	_ = os.WriteFile(filepath.Join(memDir, "AGENTS.md"), []byte("# Steering\n- Check 'wiki/nonexistent.md'\n"), 0644)
+
+	issues, err := lint.ValidateMemory(tmpDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(issues) < 2 {
+		t.Errorf("expected at least 2 memory issues, got %d", len(issues))
+	}
+}

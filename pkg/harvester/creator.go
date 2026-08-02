@@ -80,12 +80,53 @@ func (c *Creator) ScaffoldRepo() error {
 		filepath.Join(c.repoPath, "skills"),
 		filepath.Join(c.repoPath, "prompts"),
 		filepath.Join(c.repoPath, "mcp"),
+		filepath.Join(c.repoPath, "memory"),
+		filepath.Join(c.repoPath, "memory", "raw"),
+		filepath.Join(c.repoPath, "memory", "wiki"),
 	}
 
 	for _, d := range dirs {
 		if err := c.fs.MkdirAll(d, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", d, err)
 		}
+	}
+
+	// Scaffold 3-layer agent memory template assets
+	memoryAgentsPath := filepath.Join(c.repoPath, "memory", "AGENTS.md")
+	memoryAgentsContent := `# Agent Memory Navigation
+
+## Core Map
+- Read ` + "`wiki/INDEX.md`" + ` first to locate specific topics before searching files.
+
+## Triggering Rules
+- **Tech Architecture**: Check ` + "`wiki/architecture.md`" + ` before answering infrastructure or tech stack questions.
+- **Raw Files**: Only inspect original assets in ` + "`raw/`" + ` if ` + "`wiki/`" + ` lacks detailed figures or visual layout details.
+`
+	if err := afero.WriteFile(c.fs, memoryAgentsPath, []byte(memoryAgentsContent), 0644); err != nil {
+		return fmt.Errorf("failed to write memory/AGENTS.md: %w", err)
+	}
+
+	memoryIndexPath := filepath.Join(c.repoPath, "memory", "wiki", "INDEX.md")
+	memoryIndexContent := `# Memory Index
+
+- ` + "`architecture.md`" + `: System configurations, API contracts, deployment steps.
+`
+	if err := afero.WriteFile(c.fs, memoryIndexPath, []byte(memoryIndexContent), 0644); err != nil {
+		return fmt.Errorf("failed to write memory/wiki/INDEX.md: %w", err)
+	}
+
+	memoryArchPath := filepath.Join(c.repoPath, "memory", "wiki", "architecture.md")
+	memoryArchContent := `# System Architecture
+
+High-level component details and environment configurations.
+`
+	if err := afero.WriteFile(c.fs, memoryArchPath, []byte(memoryArchContent), 0644); err != nil {
+		return fmt.Errorf("failed to write memory/wiki/architecture.md: %w", err)
+	}
+
+	gitkeepPath := filepath.Join(c.repoPath, "memory", "raw", ".gitkeep")
+	if err := afero.WriteFile(c.fs, gitkeepPath, []byte(""), 0644); err != nil {
+		return fmt.Errorf("failed to write memory/raw/.gitkeep: %w", err)
 	}
 
 	gitignorePath := filepath.Join(c.repoPath, ".gitignore")
