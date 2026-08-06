@@ -196,3 +196,104 @@ func TestUninstallEngine_DryRun(t *testing.T) {
 		t.Errorf("repository directory should not be removed during dry-run")
 	}
 }
+
+func TestUninstallEngine_RecordedOriginalHarnesses(t *testing.T) {
+	tmpDir := t.TempDir()
+	fs := afero.NewOsFs()
+
+	homeDir := filepath.Join(tmpDir, "user")
+	repoDir := filepath.Join(homeDir, ".koharness", "repo")
+	geminiSkills := filepath.Join(homeDir, ".gemini", "config", "skills")
+	claudeWorkflows := filepath.Join(homeDir, ".claude", "workflows")
+
+	// Save global config with ONLY antigravity as original harness
+	cfg := &harness.GlobalConfig{
+		RepoPath:          repoDir,
+		OriginalHarnesses: []string{"antigravity"},
+	}
+	if err := harness.SaveGlobalConfig(cfg, harness.PathOptions{Fs: fs, HomeDir: homeDir}); err != nil {
+		t.Fatalf("failed saving global config: %v", err)
+	}
+
+	// Setup repository payload files
+	repoSkillFile := filepath.Join(repoDir, "skills", "ipd", "SKILL.md")
+	repoWorkflowFile := filepath.Join(repoDir, "workflows", "review.md")
+	_ = fs.MkdirAll(filepath.Dir(repoSkillFile), 0755)
+	_ = fs.MkdirAll(filepath.Dir(repoWorkflowFile), 0755)
+	_ = afero.WriteFile(fs, repoSkillFile, []byte("skill payload"), 0644)
+	_ = afero.WriteFile(fs, repoWorkflowFile, []byte("workflow payload"), 0644)
+
+	// Setup target directories and symlinks
+	_ = fs.MkdirAll(geminiSkills, 0755)
+	_ = fs.MkdirAll(claudeWorkflows, 0755)
+
+	targetSkillDir := filepath.Join(geminiSkills, "ipd")
+	targetWorkflowFile := filepath.Join(claudeWorkflows, "review.md")
+
+	if linker, ok := fs.(afero.Symlinker); ok {
+		_ = linker.SymlinkIfPossible(filepath.Join(repoDir, "skills", "ipd"), targetSkillDir)
+		_ = linker.SymlinkIfPossible(repoWorkflowFile, targetWorkflowFile)
+	} else {
+		t.Skip("OS filesystem does not support symlinks")
+	}
+
+	det, err := harness.NewDetector(harness.WithFs(fs), harness.WithHomeDir(homeDir))
+	if err != nil {
+		t.Fatalf("failed creating detector: %v", err)
+	}
+
+	engine, err := NewUninstallEngine(UninstallConfig{
+		Fs:       fs,
+		HomeDir:  homeDir,
+		Detector: det,
+		RepoPath: repoDir,
+	})
+	if err != nil {
+		t.Fatalf("failed creating uninstall engine: %v", err)
+	}
+
+	discovered, err := engine.DiscoverSymlinks()
+	if err != nil || len(discovered) != 2 {
+		t.Fatalf("expected 2 discovered symlinks, got %d (err: %v)", len(discovered), err)
+	}
+
+	var geminiAsset, claudeAsset *RestoredAsset
+	for i := range discovered {
+		if discovered[i].HarnessID == "antigravity" {
+			geminiAsset = &discovered[i]
+		} else if discovered[i].HarnessID == "claude" {
+			claudeAsset = &discovered[i]
+		}
+	}
+
+	if geminiAsset == nil || !geminiAsset.WasOriginallyInstalled {
+		t.Errorf("expected geminiAsset to have WasOriginallyInstalled = true")
+	}
+	if claudeAsset == nil || claudeAsset.WasOriginallyInstalled {
+		t.Errorf("expected claudeAsset to have WasOriginallyInstalled = false")
+	}
+
+	result, err := engine.Execute(discovered)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if len(result.RestoredAssets) != 1 || result.RestoredAssets[0].HarnessID != "antigravity" {
+		t.Errorf("expected 1 restored asset for antigravity, got %d", len(result.RestoredAssets))
+	}
+	if len(result.CleanedUpAssets) != 1 || result.CleanedUpAssets[0].HarnessID != "claude" {
+		t.Errorf("expected 1 cleaned up asset for claude, got %d", len(result.CleanedUpAssets))
+	}
+
+	// Verify gemini skill was restored to standalone directory
+	skillStat, err := os.Lstat(targetSkillDir)
+	if err != nil || skillStat.Mode()&os.ModeSymlink != 0 {
+		t.Errorf("targetSkillDir should be standalone directory, not symlink")
+	}
+
+	// Verify claude directory was completely cleaned up (removed)
+	claudeExists, _ := afero.Exists(fs, filepath.Join(homeDir, ".claude"))
+	if claudeExists {
+		t.Errorf("expected uninstalled harness directory ~/.claude to be completely removed")
+	}
+}

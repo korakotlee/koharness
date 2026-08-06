@@ -46,7 +46,7 @@ func (a *AntigravityAdapter) GetConfigPaths() HarnessPaths {
 // IsInstalled returns true if any of the Antigravity configuration directory footprints exist.
 func (a *AntigravityAdapter) IsInstalled() bool {
 	paths := a.GetConfigPaths()
-	checkPaths := []string{paths.SkillsDir, paths.WorkflowsDir, paths.MCPDir}
+	checkPaths := []string{paths.ConfigDir, paths.SkillsDir, paths.WorkflowsDir, paths.MCPDir}
 
 	for _, p := range checkPaths {
 		exists, err := afero.Exists(a.fs, p)
@@ -60,7 +60,7 @@ func (a *AntigravityAdapter) IsInstalled() bool {
 // GetStatus returns the complete installation status breakdown for Google Antigravity.
 func (a *AntigravityAdapter) GetStatus() HarnessStatus {
 	paths := a.GetConfigPaths()
-	checkPaths := []string{paths.SkillsDir, paths.WorkflowsDir, paths.MCPDir}
+	checkPaths := []string{paths.ConfigDir, paths.SkillsDir, paths.WorkflowsDir, paths.MCPDir}
 
 	var found []string
 	var missing []string

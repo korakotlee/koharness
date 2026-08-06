@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// RestoredAsset details a single symlink target slated for restoration to a physical standalone asset.
+// RestoredAsset details a single symlink target slated for restoration to a physical standalone asset or cleanup.
 type RestoredAsset struct {
 	// TargetPath is the absolute path to the active symlink in the user's harness directory.
 	TargetPath string
@@ -21,12 +21,18 @@ type RestoredAsset struct {
 	SourcePath string
 	// IsDir indicates whether the asset represents a directory payload.
 	IsDir bool
+	// HarnessID identifies the client harness (e.g. "antigravity", "claude", "codex").
+	HarnessID string
+	// WasOriginallyInstalled indicates whether this harness was present before koharness setup.
+	WasOriginallyInstalled bool
 }
 
 // UninstallResult details the outcome of an uninstallation execution.
 type UninstallResult struct {
 	// RestoredAssets lists all symlink targets converted to standalone physical files or directories.
 	RestoredAssets []RestoredAsset
+	// CleanedUpAssets lists all symlink targets cleaned up because the harness was not originally installed.
+	CleanedUpAssets []RestoredAsset
 	// RepoRemoved indicates whether the managed repository directory was deleted.
 	RepoRemoved bool
 	// ConfigPurged indicates whether global koharness configuration was removed.
@@ -53,12 +59,14 @@ type UninstallConfig struct {
 // pointing into the koharness repository, atomically restores physical standalone assets,
 // and safely removes the local repository clone.
 type UninstallEngine struct {
-	fs          afero.Fs
-	homeDir     string
-	detector    *harness.Detector
-	dryRun      bool
-	repoPath    string
-	purgeConfig bool
+	fs                afero.Fs
+	homeDir           string
+	detector          *harness.Detector
+	dryRun            bool
+	repoPath          string
+	purgeConfig       bool
+	originalHarnesses map[string]bool
+	recordedHarnesses bool
 }
 
 // NewUninstallEngine constructs a new UninstallEngine instance with the provided configuration options.
@@ -96,13 +104,25 @@ func NewUninstallEngine(cfg UninstallConfig) (*UninstallEngine, error) {
 		det = d
 	}
 
+	origMap := make(map[string]bool)
+	recorded := false
+	globalCfg, err := harness.LoadGlobalConfig(harness.PathOptions{Fs: fs, HomeDir: homeDir})
+	if err == nil && globalCfg != nil && len(globalCfg.OriginalHarnesses) > 0 {
+		recorded = true
+		for _, h := range globalCfg.OriginalHarnesses {
+			origMap[h] = true
+		}
+	}
+
 	return &UninstallEngine{
-		fs:          fs,
-		homeDir:     homeDir,
-		detector:    det,
-		dryRun:      cfg.DryRun,
-		repoPath:    filepath.Clean(repoPath),
-		purgeConfig: cfg.PurgeConfig,
+		fs:                fs,
+		homeDir:           homeDir,
+		detector:          det,
+		dryRun:            cfg.DryRun,
+		repoPath:          filepath.Clean(repoPath),
+		purgeConfig:       cfg.PurgeConfig,
+		originalHarnesses: origMap,
+		recordedHarnesses: recorded,
 	}, nil
 }
 
@@ -165,10 +185,18 @@ func (ue *UninstallEngine) DiscoverSymlinks() ([]RestoredAsset, error) {
 						isDir = true
 					}
 
+					harnessID := string(adapter.ID())
+					wasOriginallyInstalled := true
+					if ue.recordedHarnesses {
+						wasOriginallyInstalled = ue.originalHarnesses[harnessID]
+					}
+
 					discovered = append(discovered, RestoredAsset{
-						TargetPath: cleanPath,
-						SourcePath: absTarget,
-						IsDir:      isDir,
+						TargetPath:             cleanPath,
+						SourcePath:             absTarget,
+						IsDir:                  isDir,
+						HarnessID:              harnessID,
+						WasOriginallyInstalled: wasOriginallyInstalled,
 					})
 
 					if info.IsDir() {
@@ -186,47 +214,58 @@ func (ue *UninstallEngine) DiscoverSymlinks() ([]RestoredAsset, error) {
 	return discovered, nil
 }
 
-// Execute converts the provided symlink assets into standalone physical files/directories,
-// removes the managed repository directory, and optionally purges global configuration.
+// Execute converts the provided symlink assets into standalone physical files/directories for originally
+// installed harnesses, removes uninstalled harness symlinks and empty directories, removes the managed
+// repository directory, and optionally purges global configuration.
 func (ue *UninstallEngine) Execute(assets []RestoredAsset) (*UninstallResult, error) {
 	result := &UninstallResult{
-		RestoredAssets: make([]RestoredAsset, 0, len(assets)),
+		RestoredAssets:  make([]RestoredAsset, 0, len(assets)),
+		CleanedUpAssets: make([]RestoredAsset, 0, len(assets)),
 	}
 
 	for _, asset := range assets {
-		if !ue.dryRun {
-			// Stage physical restoration to temporary location
-			tempPath := fmt.Sprintf("%s.tmp_restore.%s", asset.TargetPath, generateRandomID())
+		if asset.WasOriginallyInstalled {
+			if !ue.dryRun {
+				// Stage physical restoration to temporary location
+				tempPath := fmt.Sprintf("%s.tmp_restore.%s", asset.TargetPath, generateRandomID())
 
-			srcExists, _ := afero.Exists(ue.fs, asset.SourcePath)
-			if srcExists {
-				if asset.IsDir {
-					if err := fsutil.CopyDir(ue.fs, asset.SourcePath, tempPath); err != nil {
-						return nil, fmt.Errorf("failed copying source directory %s: %w", asset.SourcePath, err)
+				srcExists, _ := afero.Exists(ue.fs, asset.SourcePath)
+				if srcExists {
+					if asset.IsDir {
+						if err := fsutil.CopyDir(ue.fs, asset.SourcePath, tempPath); err != nil {
+							return nil, fmt.Errorf("failed copying source directory %s: %w", asset.SourcePath, err)
+						}
+					} else {
+						if err := fsutil.CopyFile(ue.fs, asset.SourcePath, tempPath); err != nil {
+							return nil, fmt.Errorf("failed copying source file %s: %w", asset.SourcePath, err)
+						}
+					}
+
+					// Remove active symlink
+					if err := ue.fs.RemoveAll(asset.TargetPath); err != nil {
+						_ = ue.fs.RemoveAll(tempPath)
+						return nil, fmt.Errorf("failed removing symlink at %s: %w", asset.TargetPath, err)
+					}
+
+					// Rename temporary copy to original target path
+					if err := ue.fs.Rename(tempPath, asset.TargetPath); err != nil {
+						return nil, fmt.Errorf("failed placing restored asset at %s: %w", asset.TargetPath, err)
 					}
 				} else {
-					if err := fsutil.CopyFile(ue.fs, asset.SourcePath, tempPath); err != nil {
-						return nil, fmt.Errorf("failed copying source file %s: %w", asset.SourcePath, err)
-					}
+					// Target in repo does not exist (broken symlink); cleanly remove broken symlink
+					_ = ue.fs.RemoveAll(asset.TargetPath)
 				}
-
-				// Remove active symlink
+			}
+			result.RestoredAssets = append(result.RestoredAssets, asset)
+		} else {
+			if !ue.dryRun {
 				if err := ue.fs.RemoveAll(asset.TargetPath); err != nil {
-					_ = ue.fs.RemoveAll(tempPath)
 					return nil, fmt.Errorf("failed removing symlink at %s: %w", asset.TargetPath, err)
 				}
-
-				// Rename temporary copy to original target path
-				if err := ue.fs.Rename(tempPath, asset.TargetPath); err != nil {
-					return nil, fmt.Errorf("failed placing restored asset at %s: %w", asset.TargetPath, err)
-				}
-			} else {
-				// Target in repo does not exist (broken symlink); cleanly remove broken symlink
-				_ = ue.fs.RemoveAll(asset.TargetPath)
+				ue.cleanupEmptyParentDirs(asset.TargetPath, asset.HarnessID)
 			}
+			result.CleanedUpAssets = append(result.CleanedUpAssets, asset)
 		}
-
-		result.RestoredAssets = append(result.RestoredAssets, asset)
 	}
 
 	// Remove repo directory if present
@@ -255,6 +294,33 @@ func (ue *UninstallEngine) Execute(assets []RestoredAsset) (*UninstallResult, er
 	}
 
 	return result, nil
+}
+
+func (ue *UninstallEngine) cleanupEmptyParentDirs(targetPath string, harnessID string) {
+	stopDir := ""
+	if adapter, ok := ue.detector.GetAdapter(harness.HarnessID(harnessID)); ok {
+		stopDir = filepath.Clean(adapter.GetConfigPaths().ConfigDir)
+	}
+
+	dir := filepath.Dir(targetPath)
+	for {
+		cleanDir := filepath.Clean(dir)
+		if cleanDir == "." || cleanDir == "/" || cleanDir == ue.homeDir {
+			break
+		}
+
+		entries, err := afero.ReadDir(ue.fs, cleanDir)
+		if err != nil || len(entries) > 0 {
+			break
+		}
+
+		_ = ue.fs.Remove(cleanDir)
+
+		if stopDir != "" && (cleanDir == stopDir || strings.HasPrefix(stopDir, cleanDir)) {
+			break
+		}
+		dir = filepath.Dir(cleanDir)
+	}
 }
 
 func isSymlinkPath(fs afero.Fs, path string) (bool, os.FileInfo, error) {

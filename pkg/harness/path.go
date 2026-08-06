@@ -35,7 +35,8 @@ type PathOptions struct {
 
 // GlobalConfig stores global CLI settings saved in ~/.koharness/config.yaml.
 type GlobalConfig struct {
-	RepoPath string `yaml:"repo_path,omitempty"`
+	RepoPath          string   `yaml:"repo_path,omitempty"`
+	OriginalHarnesses []string `yaml:"original_harnesses,omitempty"`
 }
 
 // GetGlobalConfigPath returns the absolute path to ~/.koharness/config.yaml.

@@ -21,8 +21,8 @@ var (
 	uninstallPurgeConfig bool
 )
 
-// uninstallCmd represents the `koharness uninstall` subcommand.
-var uninstallCmd = &cobra.Command{
+// UninstallCmd represents the `koharness uninstall` subcommand.
+var UninstallCmd = &cobra.Command{
 	Use:   "uninstall",
 	Short: "Uninstall koharness, restore symlinks to physical files, and remove target repository",
 	Long:  `Inspect local AI client harnesses (~/.gemini, ~/.claude, ~/.codex), detect symlinks pointing to the managed koharness repository, atomically convert them back to standalone physical files and directories, and remove the target repository clone.`,
@@ -55,10 +55,24 @@ var uninstallCmd = &cobra.Command{
 			return fmt.Errorf("failed discovering symlinks: %w", err)
 		}
 
+		var restoredCount, cleanedCount int
+		for _, asset := range discovered {
+			if asset.WasOriginallyInstalled {
+				restoredCount++
+			} else {
+				cleanedCount++
+			}
+		}
+
 		if !uninstallForce && !uninstallDryRun {
-			fmt.Fprintln(out, tui.BadgeWarn("WARNING"), lipgloss.NewStyle().Bold(true).Render("This will replace all symlinks pointing into your target repository with standalone physical files and remove the repository directory."))
+			fmt.Fprintln(out, tui.BadgeWarn("WARNING"), lipgloss.NewStyle().Bold(true).Render("This will restore standalone files for originally installed harnesses and clean up uninstalled harnesses."))
 			fmt.Fprintf(out, "Repository Path: %s\n", repoPath)
-			fmt.Fprintf(out, "Symlinks to restore: %d\n", len(discovered))
+			if restoredCount > 0 {
+				fmt.Fprintf(out, "Symlinks to restore: %d\n", restoredCount)
+			}
+			if cleanedCount > 0 {
+				fmt.Fprintf(out, "Uninstalled harness paths to clean up: %d\n", cleanedCount)
+			}
 			fmt.Fprint(out, "Are you sure you want to proceed? [y/N]: ")
 
 			reader := bufio.NewReader(os.Stdin)
@@ -89,7 +103,17 @@ var uninstallCmd = &cobra.Command{
 			fmt.Fprintf(out, "  ✔ Restored %s (converted symlink -> %s)\n", asset.TargetPath, assetKind)
 		}
 
-		fmt.Fprintf(out, "\n  ✔ Replaced %d symlink(s) with standalone physical assets.\n", len(result.RestoredAssets))
+		for _, asset := range result.CleanedUpAssets {
+			fmt.Fprintf(out, "  🧹 Cleaned up %s (harness was not originally installed)\n", asset.TargetPath)
+		}
+
+		if len(result.RestoredAssets) > 0 {
+			fmt.Fprintf(out, "\n  ✔ Replaced %d symlink(s) with standalone physical assets.\n", len(result.RestoredAssets))
+		}
+		if len(result.CleanedUpAssets) > 0 {
+			fmt.Fprintf(out, "  🧹 Cleaned up %d symlink(s) for uninstalled harnesses.\n", len(result.CleanedUpAssets))
+		}
+
 		if result.RepoRemoved {
 			fmt.Fprintf(out, "  ✔ Removed repository directory: %s\n", repoPath)
 		}
@@ -97,16 +121,16 @@ var uninstallCmd = &cobra.Command{
 			fmt.Fprintln(out, "  ✔ Purged global configuration directory.")
 		}
 
-		fmt.Fprintln(out, "\n"+tui.BadgeSuccess("COMPLETED")+" Koharness uninstalled. Dotfiles successfully restored to standalone files.")
+		fmt.Fprintln(out, "\n"+tui.BadgeSuccess("COMPLETED")+" Koharness uninstalled. System successfully restored to original condition.")
 		return nil
 	},
 }
 
 func init() {
-	uninstallCmd.Flags().BoolVar(&uninstallDryRun, "dry-run", false, "display all symlinks that will be converted and paths to be removed without altering the filesystem")
-	uninstallCmd.Flags().BoolVarP(&uninstallForce, "force", "f", false, "bypass interactive confirmation prompt")
-	uninstallCmd.Flags().StringVarP(&uninstallPath, "path", "d", "", "override target repository path")
-	uninstallCmd.Flags().BoolVar(&uninstallPurgeConfig, "purge-config", false, "purge global ~/.koharness directory after repository removal")
+	UninstallCmd.Flags().BoolVar(&uninstallDryRun, "dry-run", false, "display all symlinks that will be converted and paths to be removed without altering the filesystem")
+	UninstallCmd.Flags().BoolVarP(&uninstallForce, "force", "f", false, "bypass interactive confirmation prompt")
+	UninstallCmd.Flags().StringVarP(&uninstallPath, "path", "d", "", "override target repository path")
+	UninstallCmd.Flags().BoolVar(&uninstallPurgeConfig, "purge-config", false, "purge global ~/.koharness directory after repository removal")
 
-	RootCmd.AddCommand(uninstallCmd)
+	RootCmd.AddCommand(UninstallCmd)
 }

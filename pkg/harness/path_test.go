@@ -87,17 +87,21 @@ func TestGlobalConfigSaveAndLoad(t *testing.T) {
 
 	// 2. Save config
 	cfg.RepoPath = "~/custom/dotfiles"
+	cfg.OriginalHarnesses = []string{"antigravity", "claude"}
 	if err := harness.SaveGlobalConfig(cfg, opts); err != nil {
 		t.Fatalf("failed saving config: %v", err)
 	}
 
-	// 3. Load config and verify saved value
+	// 3. Load config and verify saved values
 	loaded, err := harness.LoadGlobalConfig(opts)
 	if err != nil {
 		t.Fatalf("failed loading saved config: %v", err)
 	}
 	if loaded.RepoPath != "~/custom/dotfiles" {
 		t.Errorf("expected RepoPath %q, got %q", "~/custom/dotfiles", loaded.RepoPath)
+	}
+	if len(loaded.OriginalHarnesses) != 2 || loaded.OriginalHarnesses[0] != "antigravity" || loaded.OriginalHarnesses[1] != "claude" {
+		t.Errorf("expected OriginalHarnesses [antigravity claude], got %v", loaded.OriginalHarnesses)
 	}
 
 	// 4. Test GetRepoPath resolution using config file

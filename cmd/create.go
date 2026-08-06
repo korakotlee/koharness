@@ -77,11 +77,28 @@ var createCmd = &cobra.Command{
 			InitGit:  gitInit,
 		})
 
+		detector, _ := harness.NewDetector(harness.WithHomeDir(homeDir))
+		var origHarnesses []string
+		if detector != nil {
+			for _, adapter := range detector.DetectInstalled() {
+				origHarnesses = append(origHarnesses, string(adapter.ID()))
+			}
+		}
+
 		if err := creator.HarvestCapabilities(selectedCaps); err != nil {
 			return fmt.Errorf("failed harvesting capabilities: %w", err)
 		}
 
-		_ = harness.SaveGlobalConfig(&harness.GlobalConfig{RepoPath: repoPath}, harness.PathOptions{HomeDir: homeDir})
+		cfg, _ := harness.LoadGlobalConfig(harness.PathOptions{HomeDir: homeDir})
+		if cfg == nil {
+			cfg = &harness.GlobalConfig{}
+		}
+		cfg.RepoPath = repoPath
+		if len(cfg.OriginalHarnesses) == 0 {
+			cfg.OriginalHarnesses = origHarnesses
+		}
+
+		_ = harness.SaveGlobalConfig(cfg, harness.PathOptions{HomeDir: homeDir})
 
 		fmt.Println(tui.BadgeSuccess("SUCCESS"), lipgloss.NewStyle().Bold(true).Render("Repository initialized and capabilities linked cleanly!"))
 		fmt.Printf("Repository Path: %s\n", repoPath)

@@ -82,6 +82,14 @@ var InitCmd = &cobra.Command{
 			selectedItems = viewItems
 		}
 
+		detector, _ := harness.NewDetector(harness.WithHomeDir(homeDir))
+		var origHarnesses []string
+		if detector != nil {
+			for _, adapter := range detector.DetectInstalled() {
+				origHarnesses = append(origHarnesses, string(adapter.ID()))
+			}
+		}
+
 		linker := symlink.NewLinkerEngine(symlink.LinkerConfig{HomeDir: homeDir})
 		linkedCount := 0
 		for _, item := range selectedItems {
@@ -96,7 +104,16 @@ var InitCmd = &cobra.Command{
 			}
 		}
 
-		if err := harness.SaveGlobalConfig(&harness.GlobalConfig{RepoPath: targetPath}, harness.PathOptions{HomeDir: homeDir}); err != nil {
+		cfg, _ := harness.LoadGlobalConfig(harness.PathOptions{HomeDir: homeDir})
+		if cfg == nil {
+			cfg = &harness.GlobalConfig{}
+		}
+		cfg.RepoPath = targetPath
+		if len(cfg.OriginalHarnesses) == 0 {
+			cfg.OriginalHarnesses = origHarnesses
+		}
+
+		if err := harness.SaveGlobalConfig(cfg, harness.PathOptions{HomeDir: homeDir}); err != nil {
 			fmt.Fprintln(cmd.OutOrStderr(), tui.BadgeWarn("CONFIG WARNING"), fmt.Sprintf("Failed writing global config: %v", err))
 		}
 
